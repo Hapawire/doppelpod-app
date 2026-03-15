@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey });
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-3-5-sonnet-20241022",
       max_tokens: 512,
       messages: [
         {
@@ -41,10 +41,11 @@ Write only the new post. No explanation, no quotes around it. Keep it the same l
     console.log("[generate-twin] Claude response generated successfully");
 
     return NextResponse.json({ text, fallback: false });
-  } catch (err) {
-    console.error("[generate-twin] Error:", err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("[generate-twin] Error:", errorMessage);
     return NextResponse.json(
-      { error: "Failed to generate twin post. Please try again." },
+      { error: `Claude API error: ${errorMessage}` },
       { status: 500 }
     );
   }
