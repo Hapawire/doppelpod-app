@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Waveform } from "@/components/waveform";
 import { Slider } from "@/components/ui/slider";
+import { CoworkModal } from "@/components/cowork-modal";
+import { CheckoutModal } from "@/components/checkout-modal";
 import { getSupabase } from "@/lib/supabase";
 
 const features = [
@@ -118,6 +120,23 @@ export default function Home() {
   const audioUrlRef = useRef<string | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Video avatar state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState("");
+  const videoPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cowork modal state
+  const [coworkOpen, setCoworkOpen] = useState(false);
+
+  // Checkout modal state
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutTier, setCheckoutTier] = useState<{ tier: string; price: string; features: string[] }>({ tier: "", price: "", features: [] });
+  const [activePlan, setActivePlan] = useState<string | null>(null);
+
   // Track audio progress
   useEffect(() => {
     if (isPlaying && audioRef.current) {
@@ -150,6 +169,12 @@ export default function Home() {
     setAudioProgress(0);
     setAudioDuration(0);
     setTtsError("");
+    // Also reset video state
+    if (videoPollingRef.current) clearInterval(videoPollingRef.current);
+    setVideoLoading(false);
+    setVideoProgress(0);
+    setVideoUrl(null);
+    setVideoError("");
   }, []);
 
   function copyOutput() {
@@ -170,6 +195,94 @@ export default function Home() {
     setVoicePreset(preset);
     const presetValues = { creative: 20, balanced: 50, clone: 90, custom: voiceStrength };
     if (preset !== "custom") setVoiceStrength(presetValues[preset]);
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    // Create preview URL
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview(URL.createObjectURL(file));
+  }
+
+  function clearAvatar() {
+    setAvatarFile(null);
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview(null);
+  }
+
+  async function handleGenerateVideo() {
+    if (!demoOutput) return;
+    setVideoLoading(true);
+    setVideoProgress(0);
+    setVideoUrl(null);
+    setVideoError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("script", demoOutput);
+      if (avatarFile) formData.append("avatar", avatarFile);
+
+      const res = await fetch("/api/generate-video", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.fallback) {
+          setVideoError(data.error);
+        } else {
+          throw new Error(data.error || "Video generation failed");
+        }
+        setVideoLoading(false);
+        return;
+      }
+
+      const videoId = data.videoId;
+      console.log("[demo] Video task started:", videoId);
+
+      // Poll for video completion
+      let elapsed = 0;
+      videoPollingRef.current = setInterval(async () => {
+        elapsed += 3;
+        // Simulate progress (caps at 90% until done)
+        setVideoProgress(Math.min(90, (elapsed / 120) * 90));
+
+        try {
+          const statusRes = await fetch(`/api/video-status?videoId=${videoId}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "completed" && statusData.videoUrl) {
+            if (videoPollingRef.current) clearInterval(videoPollingRef.current);
+            setVideoProgress(100);
+            setVideoUrl(statusData.videoUrl);
+            setVideoLoading(false);
+            console.log("[demo] Video ready!");
+          } else if (statusData.status === "failed") {
+            if (videoPollingRef.current) clearInterval(videoPollingRef.current);
+            setVideoError("Video generation failed. Please try again.");
+            setVideoLoading(false);
+          }
+        } catch {
+          // Keep polling on network errors
+        }
+
+        // Timeout after 5 minutes
+        if (elapsed > 300) {
+          if (videoPollingRef.current) clearInterval(videoPollingRef.current);
+          setVideoError("Video generation timed out. Please try again.");
+          setVideoLoading(false);
+        }
+      }, 3000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Video generation failed";
+      console.error("[demo] Video error:", msg);
+      setVideoError(msg);
+      setVideoLoading(false);
+    }
   }
 
   async function handleWaitlist(e: React.FormEvent) {
@@ -500,16 +613,30 @@ export default function Home() {
                         </li>
                       ))}
                     </ul>
-                    <Button
-                      className={`w-full transition-all duration-200 hover:scale-105 hover:shadow-lg ${
-                        plan.highlighted
-                          ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 hover:shadow-purple-500/30"
-                          : ""
-                      }`}
-                      variant={plan.highlighted ? "default" : "outline"}
-                    >
-                      {plan.cta}
-                    </Button>
+                    {activePlan === plan.tier ? (
+                      <div className="flex items-center justify-center gap-2 rounded-lg border border-green-500/30 bg-green-950/20 py-2 text-xs font-medium text-green-400">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        {plan.tier} Active
+                      </div>
+                    ) : (
+                      <Button
+                        className={`w-full transition-all duration-200 hover:scale-105 hover:shadow-lg ${
+                          plan.highlighted
+                            ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 hover:shadow-purple-500/30"
+                            : ""
+                        }`}
+                        variant={plan.highlighted ? "default" : "outline"}
+                        onClick={() => {
+                          if (plan.tier === "Free") return;
+                          setCheckoutTier({ tier: plan.tier, price: plan.price, features: plan.features });
+                          setCheckoutOpen(true);
+                        }}
+                      >
+                        {plan.cta}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -602,6 +729,21 @@ export default function Home() {
                   <p className="whitespace-pre-wrap text-xs leading-relaxed sm:text-sm">
                     {demoOutput}
                   </p>
+
+                  {/* Claude Cowork button */}
+                  <Button
+                    variant="outline"
+                    className="w-full border-purple-500/30 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20"
+                    onClick={() => setCoworkOpen(true)}
+                  >
+                    <span className="mr-2 flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-purple-500 to-pink-500 text-[10px] font-bold text-white">
+                      C
+                    </span>
+                    Claude Cowork — Refine with AI
+                    <span className="ml-auto rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-400 border border-purple-500/20">
+                      ELITE
+                    </span>
+                  </Button>
 
                   {/* Voice section */}
                   <div className="border-t border-purple-500/20 pt-4 space-y-4">
@@ -763,6 +905,181 @@ export default function Home() {
                       </motion.div>
                     )}
                   </div>
+
+                  {/* Video Avatar Section */}
+                  <div className="border-t border-purple-500/20 pt-4 space-y-4">
+                    <p className="text-xs font-medium text-purple-400">
+                      TALKING VIDEO AVATAR
+                    </p>
+
+                    {/* Avatar photo upload */}
+                    <div className="flex items-center gap-3">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-dashed border-purple-500/30 bg-purple-950/30">
+                        {avatarPreview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarPreview}
+                            alt="Avatar preview"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-lg">
+                            👤
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <label className="group flex cursor-pointer items-center gap-2 rounded-lg border border-purple-500/20 bg-purple-950/20 px-3 py-2 text-xs text-purple-300 transition-all hover:border-purple-500/40 hover:bg-purple-950/30">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" x2="12" y1="3" y2="15" />
+                          </svg>
+                          {avatarFile ? avatarFile.name : "Upload your photo"}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={handleAvatarChange}
+                          />
+                        </label>
+                        {avatarFile ? (
+                          <button
+                            onClick={clearAvatar}
+                            className="text-[10px] text-muted-foreground hover:text-red-400 transition-colors"
+                          >
+                            Remove photo &middot; use default avatar
+                          </button>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground">
+                            Or use default avatar for instant demo
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Generate Video button */}
+                    {!videoLoading && !videoUrl && (
+                      <Button
+                        variant="outline"
+                        className="w-full border-purple-500/30 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20"
+                        onClick={handleGenerateVideo}
+                      >
+                        <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="23 7 16 12 23 17 23 7" />
+                          <rect width="15" height="14" x="1" y="5" rx="2" />
+                        </svg>
+                        Generate Talking Video
+                      </Button>
+                    )}
+
+                    {/* Video loading state */}
+                    {videoLoading && (
+                      <div className="space-y-3 py-2">
+                        <div className="flex items-center gap-3">
+                          <svg className="h-5 w-5 animate-spin text-purple-400" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <span className="text-sm text-purple-300">
+                            Generating talking avatar...
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="space-y-1">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-purple-950/50">
+                            <motion.div
+                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                              initial={{ width: "0%" }}
+                              animate={{ width: `${videoProgress}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground text-right tabular-nums">
+                            {Math.round(videoProgress)}%
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground text-center">
+                          HeyGen is rendering your video — this typically takes 1-2 minutes
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Video player */}
+                    {videoUrl && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-3"
+                      >
+                        <div className="relative overflow-hidden rounded-xl border border-purple-500/30 bg-black">
+                          <video
+                            src={videoUrl}
+                            controls
+                            playsInline
+                            className="w-full max-h-[480px] rounded-xl"
+                            poster={avatarPreview || undefined}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <a
+                            href={videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1"
+                          >
+                            <Button
+                              variant="outline"
+                              className="w-full border-purple-500/30 text-purple-300 hover:bg-purple-500/10 text-xs"
+                            >
+                              <svg className="mr-1.5 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" x2="12" y1="15" y2="3" />
+                              </svg>
+                              Download
+                            </Button>
+                          </a>
+                          <Button
+                            variant="outline"
+                            className="flex-1 border-purple-500/30 text-purple-300 hover:bg-purple-500/10 text-xs"
+                            onClick={() => {
+                              setVideoUrl(null);
+                              setVideoProgress(0);
+                            }}
+                          >
+                            <svg className="mr-1.5 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="1 4 1 10 7 10" />
+                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                            </svg>
+                            Regenerate
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Video error */}
+                    {videoError && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-950/20 px-3 py-2"
+                      >
+                        <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" x2="12" y1="8" y2="12" />
+                          <line x1="12" x2="12.01" y1="16" y2="16" />
+                        </svg>
+                        <div className="space-y-1">
+                          <p className="text-xs text-amber-400">{videoError}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Get your API key at{" "}
+                            <span className="text-purple-400">heygen.com → Settings → API</span>
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </motion.div>
               )}
             </CardContent>
@@ -878,6 +1195,28 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* Claude Cowork Modal */}
+      <CoworkModal
+        open={coworkOpen}
+        onOpenChange={setCoworkOpen}
+        initialScript={demoOutput}
+        onScriptUpdate={(newScript) => setDemoOutput(newScript)}
+        voiceStrength={voiceStrength}
+      />
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        tier={checkoutTier.tier}
+        price={checkoutTier.price}
+        features={checkoutTier.features}
+        onSuccess={(tier) => {
+          setActivePlan(tier);
+          setCheckoutOpen(false);
+        }}
+      />
     </div>
   );
 }
