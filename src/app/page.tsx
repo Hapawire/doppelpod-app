@@ -589,7 +589,7 @@ export default function Home() {
               Simple, transparent pricing
             </h2>
             <p className="mt-3 text-sm text-muted-foreground sm:mt-4 sm:text-base">
-              Start free. Scale when you&apos;re ready.
+              Try for free. Scale when you&apos;re ready.
             </p>
           </motion.div>
           <div className="grid gap-4 sm:grid-cols-3 sm:gap-6">
@@ -603,7 +603,7 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: i * 0.1 }}
               >
                 <Card
-                  className={`relative h-full transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10 ${
+                  className={`relative overflow-visible h-full transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10 ${
                     plan.highlighted
                       ? "border-purple-500 bg-gradient-to-b from-purple-950/30 to-card shadow-lg shadow-purple-500/10"
                       : "border-border/50 bg-card/50"

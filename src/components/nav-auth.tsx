@@ -44,7 +44,7 @@ export function NavAuth() {
         className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700 transition-all hover:scale-105 hover:shadow-lg hover:shadow-purple-500/30"
         onClick={() => setAuthOpen(true)}
       >
-        Login
+        Login / Signup
       </Button>
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </>
