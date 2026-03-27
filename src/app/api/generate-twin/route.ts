@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey });
 
     const message = await client.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 256,
       system: `You are a ghostwriter. Your job is to write new social media posts that are indistinguishable from the original author. You do this by carefully studying their writing patterns — NOT by guessing or injecting a generic internet voice.
 
