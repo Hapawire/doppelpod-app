@@ -23,6 +23,8 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
+  updatePassword: (password: string) => Promise<{ error?: string }>;
+  deleteAccount: () => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,6 +39,8 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => ({}),
   signOut: async () => {},
   resetPassword: async () => ({}),
+  updatePassword: async () => ({}),
+  deleteAccount: async () => ({}),
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -130,6 +134,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {};
   }
 
+  async function updatePassword(password: string) {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    return {};
+  }
+
+  async function deleteAccount() {
+    try {
+      const res = await fetch("/api/account/delete", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        return { error: data.error || "Failed to delete account" };
+      }
+      await supabase.auth.signOut();
+      setProfile(null);
+      setUsage(null);
+      window.location.href = "/";
+      return {};
+    } catch {
+      return { error: "Something went wrong. Try again." };
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setProfile(null);
@@ -151,6 +178,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         resetPassword,
+        updatePassword,
+        deleteAccount,
       }}
     >
       {children}

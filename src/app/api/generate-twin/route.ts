@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { posts } = await req.json();
+    const { posts, mode } = await req.json();
 
     if (!posts || typeof posts !== "string" || !posts.trim()) {
       return NextResponse.json(
@@ -49,11 +49,11 @@ STRICT RULES:
       messages: [
         {
           role: "user",
-          content: `Here are posts written by the author:
+          content: `Here is a post written by the author:
 
 ${posts}
 
-Write ONE new post on a different topic in this author's exact voice. Your post MUST be the same length as the original (if the original is one sentence, write one sentence). Do not add details that aren't implied. Preserve their exact tone, vocabulary, and profanity level. Output only the post.`,
+Rewrite this post in the author's voice but punched up — sharper, more engaging, better hooks. Stay on the SAME topic unless the author explicitly asks to change it. Keep the same length. Do not invent new details or claims. Preserve their exact tone, vocabulary, and profanity level. Output only the rewritten post.`,
         },
       ],
     });

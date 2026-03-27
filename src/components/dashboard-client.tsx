@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/components/auth-provider";
 import { CheckoutModal } from "@/components/checkout-modal";
 import { TIER_LIMITS } from "@/lib/tiers";
@@ -27,7 +28,7 @@ export function DashboardClient({
   profile,
   initialGenerations,
 }: DashboardClientProps) {
-  const { signOut, effectiveTier, trialDaysLeft, usage, refreshProfile } = useAuth();
+  const { signOut, effectiveTier, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
   const limits = TIER_LIMITS[effectiveTier];
   const [generations] = useState<Generation[]>(initialGenerations);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -56,6 +57,132 @@ export function DashboardClient({
       ],
     },
   };
+  // Account management state
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  async function handleChangePassword() {
+    if (!newPassword || !confirmPassword) {
+      setPasswordStatus({ type: "error", message: "Both fields are required." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus({ type: "error", message: "Passwords don't match." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordStatus({ type: "error", message: "Password must be at least 6 characters." });
+      return;
+    }
+    setPasswordLoading(true);
+    setPasswordStatus(null);
+    const result = await updatePassword(newPassword);
+    if (result.error) {
+      setPasswordStatus({ type: "error", message: result.error });
+    } else {
+      setPasswordStatus({ type: "success", message: "Password updated." });
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setShowChangePassword(false), 1500);
+    }
+    setPasswordLoading(false);
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeleteLoading(true);
+    const result = await deleteAccount();
+    if (result.error) {
+      setPasswordStatus({ type: "error", message: result.error });
+      setDeleteLoading(false);
+    }
+    // If successful, deleteAccount redirects to homepage
+  }
+
+  async function handleBillingPortal() {
+    setBillingLoading(true);
+    try {
+      const res = await fetch("/api/account/billing-portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setPasswordStatus({ type: "error", message: data.error || "Could not open billing portal." });
+      }
+    } catch {
+      setPasswordStatus({ type: "error", message: "Something went wrong." });
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function handleExportData() {
+    setExportLoading(true);
+    try {
+      const res = await fetch("/api/account/export");
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `doppelpod-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setPasswordStatus({ type: "error", message: "Export failed. Try again." });
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  // Text generation state
+  const [genInput, setGenInput] = useState("");
+  const [genOutput, setGenOutput] = useState("");
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function handleGenerate() {
+    if (!genInput.trim()) return;
+    setGenLoading(true);
+    setGenOutput("");
+    setGenError("");
+    try {
+      const res = await fetch("/api/generate-twin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posts: genInput, mode: "enhance" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGenError(data.error || "Generation failed");
+      } else {
+        setGenOutput(data.text || data.twinPost || data.output || "");
+      }
+    } catch (err) {
+      setGenError("Something went wrong. Try again.");
+    } finally {
+      setGenLoading(false);
+    }
+  }
+
+  function handleCopy() {
+    if (!genOutput) return;
+    navigator.clipboard.writeText(genOutput).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   const [voiceUploading, setVoiceUploading] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(
     profile.voice_id ? "Voice sample uploaded" : null
@@ -143,8 +270,25 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.1 }}
         >
           <Card className="border-border/50 bg-card/50">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Account</CardTitle>
+              <button
+                  onClick={() => setShowAccountSettings(!showAccountSettings)}
+                  className="flex items-center gap-2 rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-400 uppercase tracking-wider hover:bg-purple-500/15 hover:text-purple-300 transition-all"
+                >
+                  <svg
+                    className={`h-3 w-3 transition-transform duration-200 ${showAccountSettings ? "rotate-90" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  Account Settings
+                </button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -224,6 +368,241 @@ export function DashboardClient({
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Account Actions */}
+              {showAccountSettings && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="border-t border-border/50 pt-4"
+              >
+                <div className="flex flex-col gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                    onClick={() => setShowChangePassword(!showChangePassword)}
+                  >
+                    Change Password
+                  </Button>
+                  {(activePlan === "pro" || activePlan === "elite") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                      onClick={handleBillingPortal}
+                      disabled={billingLoading}
+                    >
+                      {billingLoading ? "Opening..." : "Manage Subscription"}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                    onClick={handleExportData}
+                    disabled={exportLoading}
+                  >
+                    {exportLoading ? "Exporting..." : "Export Data"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                  >
+                    Delete Account
+                  </Button>
+                </div>
+
+                {/* Change Password Form */}
+                {showChangePassword && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-3 rounded-lg border border-border/50 bg-muted/10 p-4"
+                  >
+                    <input
+                      type="password"
+                      placeholder="New password"
+                      className="w-full rounded-md border border-border/50 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Confirm new password"
+                      className="w-full rounded-md border border-border/50 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
+                        onClick={handleChangePassword}
+                        disabled={passwordLoading}
+                      >
+                        {passwordLoading ? "Updating..." : "Update Password"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-border/50"
+                        onClick={() => {
+                          setShowChangePassword(false);
+                          setNewPassword("");
+                          setConfirmPassword("");
+                          setPasswordStatus(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Delete Account Confirmation */}
+                {showDeleteConfirm && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-3 rounded-lg border border-red-500/20 bg-red-950/10 p-4"
+                  >
+                    <p className="text-sm text-red-400">
+                      This will permanently delete your account, all generations, voice data, and cancel any active subscription. This cannot be undone.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Type <span className="font-mono font-bold text-red-400">DELETE</span> to confirm:
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Type DELETE to confirm"
+                      className="w-full rounded-md border border-red-500/30 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-red-600 text-white border-0 hover:bg-red-700"
+                        onClick={handleDeleteAccount}
+                        disabled={deleteLoading || deleteConfirmText !== "DELETE"}
+                      >
+                        {deleteLoading ? "Deleting..." : "Permanently Delete"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-border/50"
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setDeleteConfirmText("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Status messages */}
+                {passwordStatus && (
+                  <p className={`text-xs ${passwordStatus.type === "error" ? "text-red-400" : "text-green-400"}`}>
+                    {passwordStatus.message}
+                  </p>
+                )}
+              </motion.div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Text Generation */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+        >
+          <Card className="border-border/50 bg-card/50">
+            <CardHeader>
+              <CardTitle className="text-lg">Generate</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder="Type or paste your text here..."
+                className="min-h-[120px] resize-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:border-purple-500/50"
+                value={genInput}
+                onChange={(e) => setGenInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (genInput.trim() && !genLoading) handleGenerate();
+                  }
+                }}
+              />
+              <Button
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/30"
+                onClick={handleGenerate}
+                disabled={genLoading || !genInput.trim()}
+              >
+                {genLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Generating...
+                  </span>
+                ) : (
+                  "Generate Twin Post"
+                )}
+              </Button>
+
+              {genError && (
+                <div className="rounded-md border border-red-500/20 bg-red-950/20 px-3 py-2">
+                  <p className="text-xs text-red-400">{genError}</p>
+                </div>
+              )}
+
+              {genOutput && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 rounded-lg border border-purple-500/30 bg-purple-950/20 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-purple-400">
+                      YOUR AI TWIN WROTE:
+                    </p>
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium text-purple-400 transition-all hover:bg-purple-500/10 hover:text-purple-300 active:scale-95"
+                      title="Copy to clipboard"
+                    >
+                      {copied ? (
+                        <>
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                          </svg>
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {genOutput}
+                  </p>
+                </motion.div>
               )}
             </CardContent>
           </Card>
