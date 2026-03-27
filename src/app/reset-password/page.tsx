@@ -15,13 +15,20 @@ export default function ResetPasswordPage() {
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
-    // Supabase automatically picks up the token from the URL hash
-    // and establishes a session. We just need to wait for it.
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    // Check if there's already an active session (event may have fired before mount)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
         setReady(true);
       }
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        setReady(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [supabase]);
 
   async function handleSubmit(e: React.FormEvent) {
