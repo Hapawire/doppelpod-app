@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Montserrat, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from "@/components/auth-provider";
 import { TrialBanner } from "@/components/trial-banner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
 });
 
@@ -61,7 +61,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark scroll-smooth">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${montserrat.variable} ${geistMono.variable} antialiased font-sans`}
       >
         <AuthProvider>
           <TrialBanner />
