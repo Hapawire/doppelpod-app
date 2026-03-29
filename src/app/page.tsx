@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,6 +122,16 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [checkoutTier, setCheckoutTier] = useState<{ tier: string; price: string; features: string[] }>({ tier: "", price: "", features: [] });
   const [activePlan, setActivePlan] = useState<string | null>(null);
+  const pendingCheckout = useRef<{ tier: string; price: string; features: string[] } | null>(null);
+
+  // Auto-open checkout after signup if user clicked a paid plan while unauthenticated
+  useEffect(() => {
+    if (user && pendingCheckout.current) {
+      setCheckoutTier(pendingCheckout.current);
+      setCheckoutOpen(true);
+      pendingCheckout.current = null;
+    }
+  }, [user]);
 
 
 
@@ -361,6 +371,11 @@ export default function Home() {
                         variant={plan.highlighted ? "default" : "outline"}
                         onClick={() => {
                           if (plan.isTrial) {
+                            setSignupOpen(true);
+                            return;
+                          }
+                          if (!user) {
+                            pendingCheckout.current = { tier: plan.tier, price: plan.price, features: plan.features };
                             setSignupOpen(true);
                             return;
                           }

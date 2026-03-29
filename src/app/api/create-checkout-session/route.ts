@@ -37,8 +37,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Real Stripe checkout session
+    // Real Stripe checkout session — require auth
+    const supabaseReal = await createServerSupabaseClient();
+    const { data: { user: stripeUser } } = await supabaseReal.auth.getUser();
+    if (!stripeUser) {
+      return NextResponse.json(
+        { error: "You must be signed in to subscribe." },
+        { status: 401 }
+      );
+    }
+
     const origin = req.nextUrl.origin;
+
+    const params: Record<string, string> = {
+      mode: "subscription",
+      "line_items[0][price]": priceId,
+      "line_items[0][quantity]": "1",
+      success_url: `${origin}/success?tier=${tier}`,
+      cancel_url: `${origin}?checkout=cancel`,
+      "metadata[tier]": tier,
+    };
+
+    if (stripeUser.email) {
+      params.customer_email = stripeUser.email;
+    }
 
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -46,14 +68,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${secretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        mode: "subscription",
-        "line_items[0][price]": priceId,
-        "line_items[0][quantity]": "1",
-        success_url: `${origin}/success?tier=${tier}`,
-        cancel_url: `${origin}?checkout=cancel`,
-        "metadata[tier]": tier,
-      }),
+      body: new URLSearchParams(params),
     });
 
     if (!res.ok) {
