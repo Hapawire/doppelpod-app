@@ -1,4 +1,4 @@
-export type TierName = "trial" | "free" | "pro" | "elite";
+export type TierName = "trial" | "expired" | "pro" | "elite";
 
 export interface UserProfile {
   id: string;
@@ -37,7 +37,7 @@ export const TIER_LIMITS: Record<TierName, TierLimits> = {
     coworkDailyLimit: null,
     priorityRendering: true,
   },
-  free: {
+  expired: {
     voice: false,
     video: false,
     videoLimit: 0,
@@ -74,7 +74,7 @@ export function getEffectiveTier(profile: {
     if (profile.trial_end && new Date(profile.trial_end) > new Date()) {
       return "trial";
     }
-    return "free"; // expired trial
+    return "expired"; // expired trial
   }
   return profile.tier as TierName;
 }

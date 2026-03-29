@@ -31,8 +31,8 @@ export function TrialBanner() {
     );
   }
 
-  // Expired trial (now effectively "free")
-  if (profile?.tier === "trial" && effectiveTier === "free") {
+  // Expired trial
+  if (effectiveTier === "expired") {
     return (
       <div className="w-full bg-gradient-to-r from-red-900/80 to-orange-900/80 text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3">
         <span>⚠️ Your Elite trial has ended</span>

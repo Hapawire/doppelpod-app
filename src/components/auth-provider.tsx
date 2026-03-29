@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   profile: null,
   usage: null,
-  effectiveTier: "free",
+  effectiveTier: "expired",
   trialDaysLeft: 0,
   refreshProfile: async () => {},
   signIn: async () => ({}),
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveTier: TierName = profile
     ? getEffectiveTier(profile)
-    : "free";
+    : "expired";
 
   const trialDaysLeft = profile ? getTrialDaysLeft(profile.trial_end) : 0;
 

@@ -72,7 +72,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    profile: profile || { id: user.id, tier: "free", trial_end: null, voice_id: null },
+    profile: profile || { id: user.id, tier: "expired", trial_end: null, voice_id: null },
     usage: usage || { video_count: 0, cowork_sessions: 0, cowork_sessions_today: 0 },
   });
 }

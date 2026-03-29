@@ -24,6 +24,23 @@ interface DashboardClientProps {
   initialGenerations: Generation[];
 }
 
+function ExpiredOverlay({ onUpgrade }: { onUpgrade: () => void }) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
+      <div className="text-center space-y-3">
+        <p className="text-sm font-medium text-muted-foreground">Your trial has ended</p>
+        <Button
+          size="sm"
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
+          onClick={onUpgrade}
+        >
+          Upgrade to Continue
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardClient({
   user,
   profile,
@@ -153,7 +170,8 @@ export function DashboardClient({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const tierColors: Record<string, string> = {
-    free: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    expired: "bg-red-500/20 text-red-400 border-red-500/30",
+    trial: "bg-green-500/20 text-green-400 border-green-500/30",
     pro: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     elite: "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-pink-400 border-pink-500/30",
   };
@@ -268,14 +286,14 @@ export function DashboardClient({
                 <span className="text-sm text-muted-foreground">Plan:</span>
                 <span
                   className={`rounded-full border px-3 py-1 text-xs font-medium uppercase ${
-                    tierColors[effectiveTier] || tierColors.free
+                    tierColors[effectiveTier] || tierColors.expired
                   }`}
                 >
                   {effectiveTier === "trial"
                     ? `Trial (${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} left)`
                     : effectiveTier}
                 </span>
-                {activePlan === "free" && (
+                {(effectiveTier === "expired" || activePlan === "trial") && (
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -387,9 +405,10 @@ export function DashboardClient({
                     variant="outline"
                     className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
                     onClick={handleExportData}
-                    disabled={exportLoading}
+                    disabled={exportLoading || effectiveTier === "expired"}
+                    title={effectiveTier === "expired" ? "Upgrade to export your data" : undefined}
                   >
-                    {exportLoading ? "Exporting..." : "Export Data"}
+                    {exportLoading ? "Exporting..." : effectiveTier === "expired" ? "Export Data (Upgrade Required)" : "Export Data"}
                   </Button>
                   <Button
                     size="sm"
@@ -509,8 +528,10 @@ export function DashboardClient({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.15 }}
+          className="relative"
         >
-          <Card className="border-border/50 bg-card/50">
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Generate</CardTitle>
             </CardHeader>
@@ -525,8 +546,10 @@ export function DashboardClient({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
+          className="relative"
         >
-          <Card className="border-border/50 bg-card/50">
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Voice Clone</CardTitle>
             </CardHeader>
@@ -579,8 +602,10 @@ export function DashboardClient({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.3 }}
+          className="relative"
         >
-          <Card className="border-border/50 bg-card/50">
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Past Generations</CardTitle>
             </CardHeader>

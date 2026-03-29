@@ -37,7 +37,7 @@ export async function checkFeatureAccess(
     return {
       allowed: false,
       error: "Profile not found. Please log in again.",
-      effectiveTier: "free",
+      effectiveTier: "expired",
       profile: null,
       usage: null,
     };

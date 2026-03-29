@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       user={{ id: user.id, email: user.email || "" }}
-      profile={profile || { tier: "free", voice_id: null }}
+      profile={profile || { tier: "expired", voice_id: null }}
       initialGenerations={generations || []}
     />
   );
