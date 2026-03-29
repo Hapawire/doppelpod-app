@@ -13,6 +13,13 @@ export async function DELETE() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: "Please confirm your email before deleting your account." },
+        { status: 403 }
+      );
+    }
+
     // Delete user data from app tables first
     await supabase.from("generations").delete().eq("user_id", user.id);
     await supabase.from("usage_tracking").delete().eq("user_id", user.id);

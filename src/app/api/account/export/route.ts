@@ -12,6 +12,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: "Please confirm your email before exporting data." },
+        { status: 403 }
+      );
+    }
+
     // Fetch all user data
     const [profileRes, generationsRes, usageRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", user.id).single(),

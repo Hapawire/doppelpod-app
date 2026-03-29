@@ -46,7 +46,7 @@ export function DashboardClient({
   profile,
   initialGenerations,
 }: DashboardClientProps) {
-  const { signOut, effectiveTier, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
+  const { signOut, effectiveTier, emailConfirmed, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
   const limits = TIER_LIMITS[effectiveTier];
   const [generations] = useState<Generation[]>(initialGenerations);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -243,6 +243,15 @@ export function DashboardClient({
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 pt-24 pb-16 space-y-8">
+        {!emailConfirmed && (
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 flex items-center gap-3">
+            <span className="text-xl">✉️</span>
+            <div>
+              <p className="text-sm font-medium text-yellow-400">Confirm your email to unlock all features</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Check your inbox for a confirmation link. Voice generation, video, Cowork, and data export are locked until confirmed.</p>
+            </div>
+          </div>
+        )}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -405,18 +414,20 @@ export function DashboardClient({
                     variant="outline"
                     className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
                     onClick={handleExportData}
-                    disabled={exportLoading || effectiveTier === "expired"}
-                    title={effectiveTier === "expired" ? "Upgrade to export your data" : undefined}
+                    disabled={exportLoading || effectiveTier === "expired" || !emailConfirmed}
+                    title={!emailConfirmed ? "Confirm your email to export data" : effectiveTier === "expired" ? "Upgrade to export your data" : undefined}
                   >
-                    {exportLoading ? "Exporting..." : effectiveTier === "expired" ? "Export Data (Upgrade Required)" : "Export Data"}
+                    {exportLoading ? "Exporting..." : !emailConfirmed ? "Export Data (Confirm Email)" : effectiveTier === "expired" ? "Export Data (Upgrade Required)" : "Export Data"}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full justify-start border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                     onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                    disabled={!emailConfirmed}
+                    title={!emailConfirmed ? "Confirm your email to delete your account" : undefined}
                   >
-                    Delete Account
+                    {!emailConfirmed ? "Delete Account (Confirm Email)" : "Delete Account"}
                   </Button>
                 </div>
 

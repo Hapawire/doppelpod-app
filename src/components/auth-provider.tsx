@@ -17,6 +17,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   usage: UsageData | null;
   effectiveTier: TierName;
+  emailConfirmed: boolean;
   trialDaysLeft: number;
   refreshProfile: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   usage: null,
   effectiveTier: "expired",
+  emailConfirmed: false,
   trialDaysLeft: 0,
   refreshProfile: async () => {},
   signIn: async () => ({}),
@@ -95,6 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const effectiveTier: TierName = profile
     ? getEffectiveTier(profile)
     : "expired";
+
+  const emailConfirmed = !!user?.email_confirmed_at;
 
   const trialDaysLeft = profile ? getTrialDaysLeft(profile.trial_end) : 0;
 
@@ -172,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         usage,
         effectiveTier,
+        emailConfirmed,
         trialDaysLeft,
         refreshProfile,
         signIn,

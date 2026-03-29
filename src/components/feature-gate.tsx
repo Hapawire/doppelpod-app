@@ -12,9 +12,32 @@ interface FeatureGateProps {
 }
 
 export function FeatureGate({ feature, children, fallback, inline }: FeatureGateProps) {
-  const { user, effectiveTier, usage } = useAuth();
+  const { user, effectiveTier, emailConfirmed, usage } = useAuth();
 
   if (!user) return <>{children}</>; // Auth gate handles login
+
+  // Email confirmation gate
+  if (!emailConfirmed) {
+    const confirmMsg = "Confirm your email to unlock this feature. Check your inbox for a confirmation link.";
+    if (fallback) return <>{fallback}</>;
+    if (inline) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-yellow-400/80">
+          <span>✉️</span>
+          <span>{confirmMsg}</span>
+        </div>
+      );
+    }
+    return (
+      <div className="relative">
+        <div className="opacity-40 pointer-events-none blur-[1px]">{children}</div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-lg">
+          <span className="text-2xl mb-2">✉️</span>
+          <p className="text-sm text-white/80 mb-3 text-center px-4">{confirmMsg}</p>
+        </div>
+      </div>
+    );
+  }
 
   const limits = TIER_LIMITS[effectiveTier];
 
