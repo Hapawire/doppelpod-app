@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { Resend } from "resend";
+import { buildVerificationEmail } from "@/lib/verification-email";
 
 function getCurrentPeriod(): string {
   const now = new Date();
@@ -36,12 +38,6 @@ export async function GET() {
       updates.tier = profile.paid_tier;
     }
 
-    // Sync email confirmation status
-    const confirmed = !!user.email_confirmed_at;
-    if (profile.email_confirmed !== confirmed) {
-      updates.email_confirmed = confirmed;
-    }
-
     if (Object.keys(updates).length > 0) {
       await supabase.from("profiles").update(updates).eq("id", user.id);
       Object.assign(profile, updates);
@@ -61,6 +57,34 @@ export async function GET() {
       .select()
       .single();
     profile = newProfile;
+
+    // Send verification email for new signups
+    if (newProfile && !newProfile.email_confirmed && user.email) {
+      try {
+        const token = crypto.randomUUID();
+        await supabase
+          .from("profiles")
+          .update({ verification_token: token })
+          .eq("id", user.id);
+
+        const resendKey = process.env.RESEND_API_KEY;
+        if (resendKey) {
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.doppelpod.io";
+          const verificationUrl = `${baseUrl}/api/verify-email?token=${token}`;
+          const resend = new Resend(resendKey);
+          const { subject, html } = buildVerificationEmail(verificationUrl);
+          await resend.emails.send({
+            from: "DoppelPod <noreply@doppelpod.io>",
+            to: user.email,
+            subject,
+            html,
+          });
+          console.log(`[profile] Verification email sent to ${user.email}`);
+        }
+      } catch (err) {
+        console.error("[profile] Failed to send verification email:", err);
+      }
+    }
   }
 
   // Fetch or create usage for current period

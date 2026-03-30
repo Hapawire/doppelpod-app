@@ -9,6 +9,7 @@ export interface UserProfile {
   voice_id: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  email_confirmed: boolean;
 }
 
 export interface UsageData {

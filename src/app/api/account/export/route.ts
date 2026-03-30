@@ -12,7 +12,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!user.email_confirmed_at) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("email_confirmed")
+      .eq("id", user.id)
+      .single();
+    if (!prof?.email_confirmed) {
       return NextResponse.json(
         { error: "Please confirm your email before exporting data." },
         { status: 403 }

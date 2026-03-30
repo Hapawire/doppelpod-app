@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,6 +88,41 @@ export function DashboardClient({
   const [billingLoading, setBillingLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+
+  // Handle ?verify= query param from email verification redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verify = params.get("verify");
+    if (verify === "success") {
+      setVerifyMessage("Email verified! All features are now unlocked.");
+      refreshProfile();
+      window.history.replaceState({}, "", "/dashboard");
+    } else if (verify === "invalid") {
+      setVerifyMessage("Invalid or expired verification link. Try resending.");
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [refreshProfile]);
+
+  async function handleResendVerification() {
+    setResendLoading(true);
+    try {
+      const res = await fetch("/api/send-verification-email", { method: "POST" });
+      const data = await res.json();
+      if (data.already_confirmed) {
+        refreshProfile();
+      } else {
+        setResendSent(true);
+        setTimeout(() => setResendSent(false), 5000);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setResendLoading(false);
+    }
+  }
 
   async function handleChangePassword() {
     if (!newPassword || !confirmPassword) {
@@ -243,13 +278,27 @@ export function DashboardClient({
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 pt-24 pb-16 space-y-8">
+        {verifyMessage && (
+          <div className={`rounded-lg border p-4 text-sm font-medium ${verifyMessage.includes("unlocked") ? "border-green-500/30 bg-green-950/20 text-green-400" : "border-red-500/30 bg-red-950/20 text-red-400"}`}>
+            {verifyMessage}
+          </div>
+        )}
         {!emailConfirmed && (
           <div className="rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 flex items-center gap-3">
-            <span className="text-xl">✉️</span>
-            <div>
+            <span className="text-xl">&#9993;&#65039;</span>
+            <div className="flex-1">
               <p className="text-sm font-medium text-yellow-400">Confirm your email to unlock all features</p>
               <p className="text-xs text-muted-foreground mt-0.5">Check your inbox for a confirmation link. Voice generation, video, Cowork, and data export are locked until confirmed.</p>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+              onClick={handleResendVerification}
+              disabled={resendLoading || resendSent}
+            >
+              {resendSent ? "Sent!" : resendLoading ? "Sending..." : "Resend Email"}
+            </Button>
           </div>
         )}
         <motion.div

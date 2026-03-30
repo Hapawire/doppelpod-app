@@ -17,11 +17,18 @@ export async function POST(req: NextRequest) {
     try {
       const supabaseCheck = await createServerSupabaseClient();
       const { data: { user: authUser } } = await supabaseCheck.auth.getUser();
-      if (authUser && !authUser.email_confirmed_at) {
-        return NextResponse.json(
-          { error: "Please confirm your email before generating posts. Check your inbox for a confirmation link." },
-          { status: 403 }
-        );
+      if (authUser) {
+        const { data: prof } = await supabaseCheck
+          .from("profiles")
+          .select("email_confirmed")
+          .eq("id", authUser.id)
+          .single();
+        if (prof && !prof.email_confirmed) {
+          return NextResponse.json(
+            { error: "Please confirm your email before generating posts. Check your inbox for a confirmation link." },
+            { status: 403 }
+          );
+        }
       }
     } catch {
       // If auth check fails, continue (allows unauthenticated demo usage)

@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ? getEffectiveTier(profile)
     : "expired";
 
-  const emailConfirmed = !!user?.email_confirmed_at;
+  const emailConfirmed = !!profile?.email_confirmed;
 
   const trialDaysLeft = profile ? getTrialDaysLeft(profile.trial_end) : 0;
 

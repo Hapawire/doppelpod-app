@@ -26,18 +26,6 @@ export async function checkFeatureAccess(
   userId: string,
   feature: Feature
 ): Promise<AccessResult> {
-  // Check email confirmation
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user && !user.email_confirmed_at) {
-    return {
-      allowed: false,
-      error: "Please confirm your email before using this feature. Check your inbox for a confirmation link.",
-      effectiveTier: "expired",
-      profile: null,
-      usage: null,
-    };
-  }
-
   // Fetch profile
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -51,6 +39,17 @@ export async function checkFeatureAccess(
       error: "Profile not found. Please log in again.",
       effectiveTier: "expired",
       profile: null,
+      usage: null,
+    };
+  }
+
+  // Check email confirmation
+  if (!profile.email_confirmed) {
+    return {
+      allowed: false,
+      error: "Please confirm your email before using this feature. Check your inbox for a confirmation link.",
+      effectiveTier: "expired",
+      profile,
       usage: null,
     };
   }
