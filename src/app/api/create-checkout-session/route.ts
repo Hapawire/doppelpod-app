@@ -24,9 +24,9 @@ export async function POST(req: NextRequest) {
         const tierLower = tier.toLowerCase();
         await supabase
           .from("profiles")
-          .update({ tier: tierLower })
+          .update({ paid_tier: tierLower })
           .eq("id", user.id);
-        console.log(`[checkout] Mock: updated ${user.email} to tier: ${tierLower}`);
+        console.log(`[checkout] Mock: updated ${user.email} paid_tier to: ${tierLower}`);
       }
 
       return NextResponse.json({

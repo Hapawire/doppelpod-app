@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   email: string | null;
   tier: TierName;
+  paid_tier: TierName | null;
   trial_end: string | null;
   voice_id: string | null;
   stripe_customer_id: string | null;
@@ -68,13 +69,18 @@ export const TIER_LIMITS: Record<TierName, TierLimits> = {
 
 export function getEffectiveTier(profile: {
   tier: string;
+  paid_tier?: string | null;
   trial_end: string | null;
 }): TierName {
   if (profile.tier === "trial") {
     if (profile.trial_end && new Date(profile.trial_end) > new Date()) {
-      return "trial";
+      return "trial"; // active trial = Elite access
     }
-    return "expired"; // expired trial
+    // Trial expired — fall to paid tier if they subscribed, otherwise expired
+    if (profile.paid_tier) {
+      return profile.paid_tier as TierName;
+    }
+    return "expired";
   }
   return profile.tier as TierName;
 }
@@ -87,6 +93,7 @@ export function getTrialDaysLeft(trialEnd: string | null): number {
 
 export function getLimitsForUser(profile: {
   tier: string;
+  paid_tier?: string | null;
   trial_end: string | null;
 }): TierLimits {
   return TIER_LIMITS[getEffectiveTier(profile)];
