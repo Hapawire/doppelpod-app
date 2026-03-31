@@ -53,6 +53,7 @@ const pricing = [
   {
     tier: "Trial",
     price: "Free",
+    yearlyTotal: null,
     period: "10 days",
     description: "Full Elite access — no credit card required",
     features: [
@@ -63,12 +64,13 @@ const pricing = [
       "All Elite features for 10 days",
     ],
     cta: "Start 10-Day Elite Trial",
-    highlighted: false,
+    highlight: null,
     isTrial: true,
   },
   {
     tier: "Pro",
     price: "$29",
+    yearlyTotal: "$290",
     period: "/mo",
     description: "For serious creators and founders",
     features: [
@@ -80,12 +82,13 @@ const pricing = [
       "Priority support",
     ],
     cta: "Go Pro",
-    highlighted: true,
+    highlight: "pro",
     isTrial: false,
   },
   {
     tier: "Elite",
     price: "$69",
+    yearlyTotal: "$690",
     period: "/mo",
     description: "Full autopilot for power users",
     features: [
@@ -97,7 +100,7 @@ const pricing = [
       "Dedicated account manager",
     ],
     cta: "Go Elite",
-    highlighted: false,
+    highlight: "elite",
     isTrial: false,
   },
 ];
@@ -120,14 +123,16 @@ export default function Home() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [checkoutTier, setCheckoutTier] = useState<{ tier: string; price: string; features: string[] }>({ tier: "", price: "", features: [] });
+  const [checkoutTier, setCheckoutTier] = useState<{ tier: string; price: string; features: string[]; billingPeriod: "monthly" | "yearly" }>({ tier: "", price: "", features: [], billingPeriod: "monthly" });
   const [activePlan, setActivePlan] = useState<string | null>(null);
-  const pendingCheckout = useRef<{ tier: string; price: string; features: string[] } | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
+  const pendingCheckout = useRef<{ tier: string; price: string; features: string[]; billingPeriod: "monthly" | "yearly" } | null>(null);
 
   // Auto-open checkout after signup if user clicked a paid plan while unauthenticated
   useEffect(() => {
     if (user && pendingCheckout.current) {
       setCheckoutTier(pendingCheckout.current);
+      setBillingPeriod(pendingCheckout.current.billingPeriod);
       setCheckoutOpen(true);
       pendingCheckout.current = null;
     }
@@ -312,6 +317,29 @@ export default function Home() {
             <p className="mt-3 text-sm text-muted-foreground sm:mt-4 sm:text-base">
               Try for free. Scale when you&apos;re ready.
             </p>
+            <p className="mt-2 text-xs text-green-400">
+              Go yearly and get 2 months free.
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <span className={`text-sm font-medium transition-colors ${billingPeriod === "monthly" ? "text-foreground" : "text-muted-foreground"}`}>
+                Monthly
+              </span>
+              <button
+                onClick={() => setBillingPeriod(billingPeriod === "monthly" ? "yearly" : "monthly")}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  billingPeriod === "yearly" ? "bg-gradient-to-r from-purple-600 to-pink-600" : "bg-muted-foreground/30"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                    billingPeriod === "yearly" ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium transition-colors ${billingPeriod === "yearly" ? "text-foreground" : "text-muted-foreground"}`}>
+                Yearly
+              </span>
+            </div>
           </motion.div>
           <div className="grid gap-4 sm:grid-cols-3 sm:gap-6">
             {pricing.map((plan, i) => (
@@ -325,12 +353,14 @@ export default function Home() {
               >
                 <Card
                   className={`relative overflow-visible h-full transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10 ${
-                    plan.highlighted
+                    plan.highlight === "pro"
                       ? "border-purple-500 bg-gradient-to-b from-purple-950/30 to-card shadow-lg shadow-purple-500/10"
-                      : "border-border/50 bg-card/50"
+                      : plan.highlight === "elite"
+                        ? "border-amber-500/60 bg-gradient-to-b from-amber-950/30 to-card shadow-lg shadow-amber-500/15"
+                        : "border-border/50 bg-card/50"
                   }`}
                 >
-                  {plan.highlighted && (
+                  {plan.highlight === "pro" && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-1 text-xs font-medium text-white">
                       Most Popular
                     </div>
@@ -339,9 +369,9 @@ export default function Home() {
                     <CardTitle className="text-lg sm:text-xl">{plan.tier}</CardTitle>
                     <CardDescription>{plan.description}</CardDescription>
                     <p className="text-2xl font-bold sm:text-3xl">
-                      {plan.price}
+                      {billingPeriod === "yearly" && plan.yearlyTotal ? plan.yearlyTotal : plan.price}
                       <span className="text-sm font-normal text-muted-foreground sm:text-base">
-                        {plan.period}
+                        {billingPeriod === "yearly" && plan.yearlyTotal ? "/year" : plan.period}
                       </span>
                     </p>
                   </CardHeader>
@@ -364,22 +394,25 @@ export default function Home() {
                     ) : (
                       <Button
                         className={`w-full transition-all duration-200 hover:scale-105 hover:shadow-lg ${
-                          plan.highlighted
+                          plan.highlight === "pro"
                             ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 hover:shadow-purple-500/30"
-                            : ""
+                            : plan.highlight === "elite"
+                              ? "bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white border-0 hover:shadow-amber-500/30"
+                              : ""
                         }`}
-                        variant={plan.highlighted ? "default" : "outline"}
+                        variant={plan.highlight ? "default" : "outline"}
                         onClick={() => {
                           if (plan.isTrial) {
                             setSignupOpen(true);
                             return;
                           }
+                          const displayPrice = billingPeriod === "yearly" && plan.yearlyTotal ? plan.yearlyTotal : plan.price;
                           if (!user) {
-                            pendingCheckout.current = { tier: plan.tier, price: plan.price, features: plan.features };
+                            pendingCheckout.current = { tier: plan.tier, price: displayPrice, features: plan.features, billingPeriod };
                             setSignupOpen(true);
                             return;
                           }
-                          setCheckoutTier({ tier: plan.tier, price: plan.price, features: plan.features });
+                          setCheckoutTier({ tier: plan.tier, price: displayPrice, features: plan.features, billingPeriod });
                           setCheckoutOpen(true);
                         }}
                       >
@@ -558,6 +591,7 @@ export default function Home() {
         onOpenChange={setCheckoutOpen}
         tier={checkoutTier.tier}
         price={checkoutTier.price}
+        billingPeriod={checkoutTier.billingPeriod}
         features={checkoutTier.features}
         onSuccess={(tier) => {
           setActivePlan(tier);

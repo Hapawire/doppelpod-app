@@ -724,6 +724,7 @@ export function DashboardClient({
         onOpenChange={setCheckoutOpen}
         tier={checkoutTier}
         price={tierInfo[checkoutTier].price}
+        billingPeriod="monthly"
         features={tierInfo[checkoutTier].features}
         onSuccess={(tier) => setActivePlan(tier)}
       />
