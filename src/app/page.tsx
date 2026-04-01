@@ -568,7 +568,7 @@ export default function Home() {
               <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z" />
               <circle cx="12" cy="15" r="2" />
             </svg>
-            Powered by AI
+            Powered by Hapawire
           </div>
           <p>
             &copy; {new Date().getFullYear()} DoppelPod. All rights reserved.
