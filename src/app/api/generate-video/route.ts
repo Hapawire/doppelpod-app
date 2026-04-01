@@ -40,36 +40,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If user uploaded a photo, create an instant avatar first
-    let avatarId: string | undefined;
+    // If user uploaded a photo, upload it as an asset for a talking photo
+    let talkingPhotoId: string | undefined;
     if (avatarPhoto && avatarPhoto.size > 0) {
-      console.log("[generate-video] Creating instant avatar from uploaded photo...");
+      console.log("[generate-video] Uploading photo asset for talking photo...");
       const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
-      const photoFormData = new FormData();
-      photoFormData.append(
-        "image",
-        new Blob([photoBuffer], { type: avatarPhoto.type }),
-        avatarPhoto.name
-      );
 
-      const avatarRes = await fetch(
-        "https://api.heygen.com/v1/photo_avatar.create",
-        {
-          method: "POST",
-          headers: { "X-Api-Key": apiKey },
-          body: photoFormData,
-        }
-      );
+      const assetRes = await fetch("https://upload.heygen.com/v1/asset", {
+        method: "POST",
+        headers: {
+          "X-Api-Key": apiKey,
+          "Content-Type": avatarPhoto.type,
+        },
+        body: photoBuffer,
+      });
 
-      if (avatarRes.ok) {
-        const avatarData = await avatarRes.json();
-        avatarId = avatarData.data?.photo_avatar_id;
-        console.log("[generate-video] Created avatar:", avatarId);
+      if (assetRes.ok) {
+        const assetData = await assetRes.json();
+        talkingPhotoId = assetData.data?.url;
+        console.log("[generate-video] Photo asset uploaded:", talkingPhotoId);
       } else {
-        const errBody = await avatarRes.text().catch(() => "");
+        const errBody = await assetRes.text().catch(() => "");
         console.warn(
-          "[generate-video] Avatar creation failed, using default. Status:",
-          avatarRes.status,
+          "[generate-video] Photo upload failed, using default avatar. Status:",
+          assetRes.status,
           errBody
         );
       }
@@ -137,8 +131,8 @@ export async function POST(req: NextRequest) {
     const videoPayload: Record<string, unknown> = {
       video_inputs: [
         {
-          character: avatarId
-            ? { type: "photo_avatar", photo_avatar_id: avatarId }
+          character: talkingPhotoId
+            ? { type: "talking_photo", talking_photo_id: talkingPhotoId }
             : {
                 type: "avatar",
                 avatar_id: "Daisy-inskirt-20220818",
