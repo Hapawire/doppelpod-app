@@ -574,16 +574,18 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
               )}
 
               {/* Photo upload — only shown when not using saved avatar */}
-              {!useSavedAvatar && <AvatarUpload
-                file={avatarFile}
-                preview={avatarPreview}
-                onFileChange={(file, preview) => {
-                  if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-                  setAvatarFile(file);
-                  setAvatarPreview(preview);
-                }}
-                disabled={videoLoading}
-              />}
+              {!useSavedAvatar && (
+                <AvatarUpload
+                  file={avatarFile}
+                  preview={avatarPreview}
+                  onFileChange={(file, preview) => {
+                    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+                    setAvatarFile(file);
+                    setAvatarPreview(preview);
+                  }}
+                  disabled={videoLoading}
+                />
+              )}
               {!useSavedAvatar && avatarFile && !videoLoading && (
                 <p className="text-[11px] text-amber-400/80">
                   ⏱ Custom photo videos take 15–25 min to generate. We&apos;ll email you when it&apos;s ready.
