@@ -41,6 +41,7 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState("");
+  const [isPhotoJob, setIsPhotoJob] = useState(false);
   const videoPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Track audio progress
@@ -203,6 +204,8 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
     setVideoProgress(0);
     setVideoUrl(null);
     setVideoError("");
+    const photoJob = !!avatarFile;
+    setIsPhotoJob(photoJob);
 
     try {
       const formData = new FormData();
@@ -226,39 +229,31 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
         return;
       }
 
-      const videoId = data.videoId;
+      const { jobId } = data;
+
+      // Photo jobs can take 15-25 min; default avatar jobs ~3-5 min
+      const timeoutSecs = photoJob ? 35 * 60 : 10 * 60;
+      const maxProgressSecs = photoJob ? 25 * 60 : 5 * 60;
 
       let elapsed = 0;
       let consecutiveErrors = 0;
       videoPollingRef.current = setInterval(async () => {
-        elapsed += 3;
-        let progress: number;
-        if (elapsed < 30) {
-          progress = (elapsed / 30) * 30;
-        } else if (elapsed < 120) {
-          progress = 30 + ((elapsed - 30) / 90) * 40;
-        } else {
-          progress = 70 + ((elapsed - 120) / 180) * 20;
-        }
-        setVideoProgress(Math.min(90, progress));
+        elapsed += 10;
+        setVideoProgress(Math.min(90, (elapsed / maxProgressSecs) * 90));
 
         try {
-          const statusRes = await fetch(`/api/video-status?videoId=${videoId}`);
-          const statusData = await statusRes.json();
+          const statusRes = await fetch(`/api/video-jobs/${jobId}`);
+          const job = await statusRes.json();
           consecutiveErrors = 0;
 
-          if (statusData.status === "completed" && statusData.videoUrl) {
+          if (job.status === "completed" && job.heygen_video_url) {
             if (videoPollingRef.current) clearInterval(videoPollingRef.current);
             setVideoProgress(100);
-            setVideoUrl(statusData.videoUrl);
+            setVideoUrl(job.heygen_video_url);
             setVideoLoading(false);
-          } else if (statusData.status === "failed") {
+          } else if (job.status === "failed") {
             if (videoPollingRef.current) clearInterval(videoPollingRef.current);
-            const detail = statusData.error?.detail || statusData.error?.message;
-            const msg = detail
-              ? `Video generation failed: ${detail}`
-              : "Video generation failed. Please try again.";
-            setVideoError(msg);
+            setVideoError(job.error_message || "Video generation failed. Please try again.");
             setVideoLoading(false);
           }
         } catch {
@@ -270,12 +265,12 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
           }
         }
 
-        if (elapsed > 300) {
+        if (elapsed > timeoutSecs) {
           if (videoPollingRef.current) clearInterval(videoPollingRef.current);
           setVideoError("Video generation timed out. Please try again.");
           setVideoLoading(false);
         }
-      }, 3000);
+      }, 10000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Video generation failed";
       setVideoError(msg);
@@ -538,9 +533,14 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
                 }}
                 disabled={videoLoading}
               />
-              {avatarFile && (
+              {avatarFile && !videoLoading && (
                 <p className="text-[11px] text-amber-400/80">
-                  ⏱ Videos with your photo take longer to generate than the default avatar.
+                  ⏱ Custom photo videos take 15–25 min to generate. We&apos;ll email you when it&apos;s ready.
+                </p>
+              )}
+              {avatarFile && videoLoading && isPhotoJob && (
+                <p className="text-[11px] text-purple-400/80">
+                  Your video is being processed — we&apos;ll email you when it&apos;s ready. You can close this page.
                 </p>
               )}
               <VideoPlayer

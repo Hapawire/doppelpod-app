@@ -27,11 +27,20 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(20);
 
+  // Fetch recent video jobs
+  const { data: videoJobs } = await supabase
+    .from("video_jobs")
+    .select("id, status, has_photo, heygen_video_url, error_message, created_at, completed_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   return (
     <DashboardClient
       user={{ id: user.id, email: user.email || "" }}
       profile={profile || { tier: "expired", voice_id: null }}
       initialGenerations={generations || []}
+      initialVideoJobs={videoJobs || []}
     />
   );
 }

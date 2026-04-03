@@ -18,10 +18,21 @@ interface Generation {
   created_at: string;
 }
 
+interface VideoJob {
+  id: string;
+  status: string;
+  has_photo: boolean;
+  heygen_video_url: string | null;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 interface DashboardClientProps {
   user: { id: string; email: string };
   profile: { tier: string; voice_id: string | null };
   initialGenerations: Generation[];
+  initialVideoJobs: VideoJob[];
 }
 
 function ExpiredOverlay({ onUpgrade }: { onUpgrade: () => void }) {
@@ -41,14 +52,55 @@ function ExpiredOverlay({ onUpgrade }: { onUpgrade: () => void }) {
   );
 }
 
+const VIDEO_STATUS_LABELS: Record<string, string> = {
+  pending: "Queued",
+  creating_avatar: "Creating avatar…",
+  awaiting_avatar: "Processing avatar…",
+  generating_video: "Generating video…",
+  awaiting_video: "Processing video…",
+  completed: "Ready",
+  failed: "Failed",
+};
+
+const ACTIVE_STATUSES = new Set([
+  "pending", "creating_avatar", "awaiting_avatar", "generating_video", "awaiting_video",
+]);
+
 export function DashboardClient({
   user,
   profile,
   initialGenerations,
+  initialVideoJobs,
 }: DashboardClientProps) {
   const { signOut, effectiveTier, emailConfirmed, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
   const limits = TIER_LIMITS[effectiveTier];
   const [generations] = useState<Generation[]>(initialGenerations);
+  const [videoJobs, setVideoJobs] = useState<VideoJob[]>(initialVideoJobs);
+  const videoJobsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for video job updates while any jobs are active
+  useEffect(() => {
+    const hasActive = videoJobs.some((j) => ACTIVE_STATUSES.has(j.status));
+    if (!hasActive) {
+      if (videoJobsPollingRef.current) clearInterval(videoJobsPollingRef.current);
+      return;
+    }
+    videoJobsPollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/video-jobs");
+        if (res.ok) {
+          const data = await res.json();
+          setVideoJobs(data.jobs || []);
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 15000);
+    return () => {
+      if (videoJobsPollingRef.current) clearInterval(videoJobsPollingRef.current);
+    };
+  }, [videoJobs]);
+
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutTier, setCheckoutTier] = useState<"pro" | "elite">("pro");
   const [activePlan, setActivePlan] = useState(profile.tier);
@@ -628,6 +680,80 @@ export function DashboardClient({
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Video Jobs */}
+        {videoJobs.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.25 }}
+          >
+            <Card className="border-border/50 bg-card/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Video Jobs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {videoJobs.map((job) => {
+                    const isActive = ACTIVE_STATUSES.has(job.status);
+                    return (
+                      <div
+                        key={job.id}
+                        className="rounded-lg border border-border/50 p-3 flex items-center gap-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-medium ${
+                                job.status === "completed"
+                                  ? "text-green-400"
+                                  : job.status === "failed"
+                                  ? "text-red-400"
+                                  : "text-purple-400"
+                              }`}
+                            >
+                              {VIDEO_STATUS_LABELS[job.status] ?? job.status}
+                            </span>
+                            {isActive && (
+                              <svg className="h-3 w-3 animate-spin text-purple-400" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            )}
+                            {job.has_photo && (
+                              <span className="text-[10px] text-muted-foreground">Custom photo</span>
+                            )}
+                          </div>
+                          {job.status === "failed" && job.error_message && (
+                            <p className="text-[11px] text-red-400/80 mt-0.5 truncate">{job.error_message}</p>
+                          )}
+                          {isActive && job.has_photo && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">We&apos;ll email you when it&apos;s ready.</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(job.created_at).toLocaleDateString()}
+                          </span>
+                          {job.status === "completed" && job.heygen_video_url && (
+                            <a
+                              href={job.heygen_video_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-medium text-purple-400 hover:text-purple-300 underline underline-offset-2"
+                            >
+                              Download
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Past Generations */}
         <motion.div

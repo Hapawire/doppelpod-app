@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { checkFeatureAccess, incrementUsage } from "@/lib/api-gate";
-
-let lastUserId: string | null = null; // Track for usage increment after success
+import { checkFeatureAccess } from "@/lib/api-gate";
 
 export async function POST(req: NextRequest) {
   try {
-    // Tier gate
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const access = await checkFeatureAccess(supabase, user.id, "video");
-      if (!access.allowed) {
-        return NextResponse.json({ error: access.error, gated: true }, { status: 403 });
-      }
-      lastUserId = user.id;
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const access = await checkFeatureAccess(supabase, user.id, "video");
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error, gated: true }, { status: 403 });
     }
 
     const formData = await req.formData();
@@ -22,69 +21,57 @@ export async function POST(req: NextRequest) {
     const avatarPhoto = formData.get("avatar") as File | null;
 
     if (!script || !script.trim()) {
-      return NextResponse.json(
-        { error: "No script provided." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No script provided." }, { status: 400 });
     }
 
     const apiKey = process.env.HEYGEN_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        {
-          error:
-            "Video generation not configured. Add HEYGEN_API_KEY to .env.local to enable real avatar videos.",
-          fallback: true,
-        },
-        { status: 503 }
-      );
+      return NextResponse.json({
+        error: "Video generation not configured. Add HEYGEN_API_KEY to .env.local.",
+        fallback: true,
+      }, { status: 503 });
     }
 
-    // If user uploaded a photo, upload it as an asset for a talking photo
-    let talkingPhotoId: string | undefined;
-    if (avatarPhoto && avatarPhoto.size > 0) {
-      console.log("[generate-video] Uploading photo asset for talking photo...");
-      const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
+    // Upload photo asset synchronously if provided
+    let imageKey: string | undefined;
+    let hasPhoto = false;
 
+    if (avatarPhoto && avatarPhoto.size > 0) {
+      console.log("[generate-video] Uploading photo asset...");
+      const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
       const assetRes = await fetch("https://upload.heygen.com/v1/asset", {
         method: "POST",
-        headers: {
-          "X-Api-Key": apiKey,
-          "Content-Type": avatarPhoto.type,
-        },
+        headers: { "X-Api-Key": apiKey, "Content-Type": avatarPhoto.type },
         body: photoBuffer,
       });
 
       if (assetRes.ok) {
         const assetData = await assetRes.json();
-        talkingPhotoId = assetData.data?.url;
-        console.log("[generate-video] Photo asset uploaded:", talkingPhotoId);
+        const assetUrl: string | undefined = assetData.data?.url;
+        imageKey = assetData.data?.id
+          ?? assetData.data?.asset_id
+          ?? (assetUrl ? assetUrl.split("/").slice(-2, -1)[0] : undefined);
+        if (imageKey) hasPhoto = true;
+        console.log("[generate-video] Photo uploaded, image_key:", imageKey);
       } else {
         const errBody = await assetRes.text().catch(() => "");
-        console.warn(
-          "[generate-video] Photo upload failed, using default avatar. Status:",
-          assetRes.status,
-          errBody
-        );
+        console.warn("[generate-video] Photo upload failed:", assetRes.status, errBody);
+        // Fall through to default avatar
       }
     }
 
-    // Generate audio via ElevenLabs if configured, then pass to HeyGen as audio input
+    // Generate ElevenLabs audio if configured
+    let audioUrl: string | undefined;
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     const elevenLabsVoiceId = process.env.ELEVENLABS_VOICE_ID || "TX3LPaxmHKxFdv7VOQHJ";
-    let audioUrl: string | undefined;
 
     if (elevenLabsKey) {
-      console.log("[generate-video] Generating ElevenLabs audio for HeyGen...");
       try {
         const ttsRes = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "xi-api-key": elevenLabsKey,
-            },
+            headers: { "Content-Type": "application/json", "xi-api-key": elevenLabsKey },
             body: JSON.stringify({
               text: script.slice(0, 1000),
               voice_settings: { stability: 0.5, similarity_boost: 0.75 },
@@ -93,101 +80,51 @@ export async function POST(req: NextRequest) {
         );
         if (ttsRes.ok) {
           const audioBuffer = await ttsRes.arrayBuffer();
-          // Upload audio to HeyGen (raw binary, not FormData)
-          const uploadRes = await fetch(
-            "https://upload.heygen.com/v1/asset",
-            {
-              method: "POST",
-              headers: {
-                "X-Api-Key": apiKey,
-                "Content-Type": "audio/mpeg",
-              },
-              body: audioBuffer,
-            }
-          );
+          const uploadRes = await fetch("https://upload.heygen.com/v1/asset", {
+            method: "POST",
+            headers: { "X-Api-Key": apiKey, "Content-Type": "audio/mpeg" },
+            body: audioBuffer,
+          });
           if (uploadRes.ok) {
             const uploadData = await uploadRes.json();
             audioUrl = uploadData.data?.url;
-            console.log("[generate-video] Audio uploaded to HeyGen:", audioUrl);
+            console.log("[generate-video] Audio uploaded:", audioUrl);
           } else {
-            const errBody = await uploadRes.text().catch(() => "");
-            console.warn("[generate-video] Audio upload to HeyGen failed:", uploadRes.status, errBody);
+            console.warn("[generate-video] Audio upload failed:", uploadRes.status);
           }
         } else {
           console.warn("[generate-video] ElevenLabs TTS failed:", ttsRes.status);
         }
       } catch (e) {
-        console.warn("[generate-video] ElevenLabs audio generation failed:", e);
+        console.warn("[generate-video] ElevenLabs audio failed:", e);
       }
     }
 
-    // Build voice config: use uploaded audio if available, otherwise HeyGen's built-in TTS
-    const voiceConfig = audioUrl
-      ? { type: "audio", audio_url: audioUrl }
-      : { type: "text", input_text: script.slice(0, 1500), voice_id: "2d5b0e6cf36f460aa7fc47e3eee4ba54" };
+    // Queue job
+    const initialStatus = hasPhoto ? "creating_avatar" : "generating_video";
+    const { data: job, error: insertError } = await supabase
+      .from("video_jobs")
+      .insert({
+        user_id: user.id,
+        status: initialStatus,
+        has_photo: hasPhoto,
+        heygen_image_key: imageKey ?? null,
+        script: script.slice(0, 2000),
+        audio_url: audioUrl ?? null,
+        retry_count: 0,
+      })
+      .select("id")
+      .single();
 
-    // Create video generation task
-    console.log("[generate-video] Creating video task...");
-    const videoPayload: Record<string, unknown> = {
-      video_inputs: [
-        {
-          character: talkingPhotoId
-            ? { type: "talking_photo", talking_photo_id: talkingPhotoId }
-            : {
-                type: "avatar",
-                avatar_id: "Daisy-inskirt-20220818",
-                avatar_style: "normal",
-              },
-          voice: voiceConfig,
-        },
-      ],
-      dimension: { width: 720, height: 1280 },
-      aspect_ratio: "9:16",
-    };
-
-    const videoRes = await fetch("https://api.heygen.com/v2/video/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": apiKey,
-      },
-      body: JSON.stringify(videoPayload),
-    });
-
-    if (!videoRes.ok) {
-      const errText = await videoRes.text();
-      console.error("[generate-video] HeyGen error:", videoRes.status, errText);
-      return NextResponse.json(
-        { error: `HeyGen API error: ${videoRes.status}` },
-        { status: videoRes.status }
-      );
+    if (insertError || !job) {
+      console.error("[generate-video] Job insert failed:", insertError?.message);
+      return NextResponse.json({ error: "Failed to queue video job." }, { status: 500 });
     }
 
-    const videoData = await videoRes.json();
-    const videoId = videoData.data?.video_id;
-
-    if (!videoId) {
-      return NextResponse.json(
-        { error: "No video ID returned from HeyGen" },
-        { status: 500 }
-      );
-    }
-
-    console.log("[generate-video] Video task created:", videoId);
-
-    // Increment video usage count
-    if (lastUserId) {
-      await incrementUsage(supabase, lastUserId, "video").catch((e) =>
-        console.warn("[generate-video] Usage increment failed:", e)
-      );
-    }
-
-    return NextResponse.json({ videoId });
+    console.log("[generate-video] Job queued:", job.id, "status:", initialStatus);
+    return NextResponse.json({ jobId: job.id });
   } catch (err) {
     console.error("[generate-video] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to generate video." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to queue video." }, { status: 500 });
   }
 }
