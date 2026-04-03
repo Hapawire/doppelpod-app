@@ -16,6 +16,7 @@ interface CheckoutModalProps {
   onOpenChange: (open: boolean) => void;
   tier: string;
   price: string;
+  billingPeriod: "monthly" | "yearly";
   features: string[];
   onSuccess: (tier: string) => void;
 }
@@ -25,6 +26,7 @@ export function CheckoutModal({
   onOpenChange,
   tier,
   price,
+  billingPeriod,
   features,
   onSuccess,
 }: CheckoutModalProps) {
@@ -32,10 +34,15 @@ export function CheckoutModal({
   const [errorMsg, setErrorMsg] = useState("");
 
   // Map tiers to Stripe price IDs (set real IDs in production)
-  const priceIds: Record<string, string> = {
+  const monthlyPriceIds: Record<string, string> = {
     Pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || "price_pro_placeholder",
     Elite: process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || "price_elite_placeholder",
   };
+  const yearlyPriceIds: Record<string, string> = {
+    Pro: process.env.NEXT_PUBLIC_STRIPE_YEARLY_PRO_PRICE_ID || "price_yearly_pro_placeholder",
+    Elite: process.env.NEXT_PUBLIC_STRIPE_YEARLY_ELITE_PRICE_ID || "price_yearly_elite_placeholder",
+  };
+  const priceIds = billingPeriod === "yearly" ? yearlyPriceIds : monthlyPriceIds;
 
   async function handleCheckout() {
     setStatus("loading");
@@ -85,7 +92,7 @@ export function CheckoutModal({
           <DialogTitle className="flex items-center gap-2">
             Upgrade to {tier}
             <span className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-2 py-0.5 text-[10px] font-medium text-white">
-              {price}/mo
+              {price}{billingPeriod === "yearly" ? "/yr" : "/mo"}
             </span>
           </DialogTitle>
           <DialogDescription>
@@ -160,11 +167,13 @@ export function CheckoutModal({
               <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
                 <div>
                   <p className="text-sm font-medium">{tier} Plan</p>
-                  <p className="text-[10px] text-muted-foreground">Billed monthly, cancel anytime</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {billingPeriod === "yearly" ? "Billed yearly, cancel anytime" : "Billed monthly, cancel anytime"}
+                  </p>
                 </div>
                 <p className="text-xl font-bold">
                   {price}
-                  <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                  <span className="text-xs font-normal text-muted-foreground">{billingPeriod === "yearly" ? "/yr" : "/mo"}</span>
                 </p>
               </div>
 
@@ -194,7 +203,7 @@ export function CheckoutModal({
                     Processing...
                   </span>
                 ) : (
-                  `Subscribe to ${tier} — ${price}/mo`
+                  `Subscribe to ${tier} — ${price}${billingPeriod === "yearly" ? "/yr" : "/mo"}`
                 )}
               </Button>
               <button

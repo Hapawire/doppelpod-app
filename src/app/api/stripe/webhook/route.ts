@@ -1,7 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { buildWelcomeEmail } from "@/lib/welcome-email";
+import { buildPaymentFailedEmail } from "@/lib/payment-failed-email";
+import { buildActionRequiredEmail } from "@/lib/action-required-email";
+
+function getSupabaseAdmin(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+async function getEmailByCustomerId(supabase: SupabaseClient, customerId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("stripe_customer_id", customerId)
+    .single();
+  return data?.email ?? null;
+}
+
+async function sendEmail(to: string, template: { subject: string; html: string }) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return;
+  try {
+    const resend = new Resend(resendKey);
+    await resend.emails.send({
+      from: "DoppelPod <noreply@doppelpod.io>",
+      to,
+      subject: template.subject,
+      html: template.html,
+    });
+    console.log(`[stripe-webhook] Email sent to ${to}: ${template.subject}`);
+  } catch (err) {
+    console.error(`[stripe-webhook] Email failed for ${to}:`, err);
+  }
+}
 
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -19,61 +55,78 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No signature" }, { status: 400 });
   }
 
-  // Verify webhook signature using Stripe API
-  let event: { type: string; data: { object: Record<string, unknown> } };
+  // Verify webhook signature
+  const stripe = new Stripe(stripeKey);
+  let event: Stripe.Event;
   try {
-    const verifyRes = await fetch("https://api.stripe.com/v1/webhook_endpoints", {
-      headers: { Authorization: `Bearer ${stripeKey}` },
-    });
-    // For simplicity, parse the event directly — in production use stripe SDK for signature verification
-    event = JSON.parse(body);
-    console.log("[stripe-webhook] Event received:", event.type);
-  } catch {
-    console.error("[stripe-webhook] Failed to parse webhook body");
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    console.log("[stripe-webhook] Event verified:", event.type);
+  } catch (err) {
+    console.error("[stripe-webhook] Signature verification failed:", err);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    console.error("[stripe-webhook] Supabase not configured");
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+
+  // --- checkout.session.completed ---
   if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-    const customerEmail = session.customer_email as string | undefined;
-    const tier = (session.metadata as Record<string, string>)?.tier?.toLowerCase();
+    const session = event.data.object as Stripe.Checkout.Session;
+    const customerEmail = session.customer_email;
+    const tier = session.metadata?.tier?.toLowerCase();
+    const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
 
     if (customerEmail && tier) {
-      // Update user tier in Supabase
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      // Update paid_tier and store stripe_customer_id
+      const updates: Record<string, unknown> = { paid_tier: tier };
+      if (customerId) updates.stripe_customer_id = customerId;
 
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { error } = await supabase
-          .from("profiles")
-          .update({ paid_tier: tier })
-          .eq("email", customerEmail);
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("email", customerEmail);
 
-        if (error) {
-          console.error("[stripe-webhook] Supabase update failed:", error.message);
-        } else {
-          console.log(`[stripe-webhook] Updated ${customerEmail} paid_tier to: ${tier}`);
-
-          // Send welcome email
-          const resendKey = process.env.RESEND_API_KEY;
-          if (resendKey) {
-            try {
-              const resend = new Resend(resendKey);
-              const { subject, html } = buildWelcomeEmail(tier);
-              await resend.emails.send({
-                from: "DoppelPod <noreply@doppelpod.io>",
-                to: customerEmail,
-                subject,
-                html,
-              });
-              console.log(`[stripe-webhook] Welcome email sent to ${customerEmail}`);
-            } catch (emailErr) {
-              console.error("[stripe-webhook] Welcome email failed:", emailErr);
-            }
-          }
-        }
+      if (error) {
+        console.error("[stripe-webhook] Supabase update failed:", error.message);
+      } else {
+        console.log(`[stripe-webhook] Updated ${customerEmail} paid_tier to: ${tier}`);
+        await sendEmail(customerEmail, buildWelcomeEmail(tier));
       }
+    }
+  }
+
+  // --- invoice.payment_failed ---
+  if (event.type === "invoice.payment_failed") {
+    const invoice = event.data.object as Stripe.Invoice;
+    let email = invoice.customer_email;
+    const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+
+    if (!email && customerId) {
+      email = await getEmailByCustomerId(supabase, customerId);
+    }
+
+    if (email) {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.doppelpod.io";
+      await sendEmail(email, buildPaymentFailedEmail(`${baseUrl}/dashboard`));
+    }
+  }
+
+  // --- invoice.payment_action_required (3D Secure) ---
+  if (event.type === "invoice.payment_action_required") {
+    const invoice = event.data.object as Stripe.Invoice;
+    let email = invoice.customer_email;
+    const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+    const hostedUrl = invoice.hosted_invoice_url;
+
+    if (!email && customerId) {
+      email = await getEmailByCustomerId(supabase, customerId);
+    }
+
+    if (email && hostedUrl) {
+      await sendEmail(email, buildActionRequiredEmail(hostedUrl));
     }
   }
 

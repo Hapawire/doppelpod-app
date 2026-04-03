@@ -615,44 +615,16 @@ export function DashboardClient({
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Upload a voice sample (30s–2min) to create your AI voice clone.
+                Upload a voice sample to train your AI voice clone.
               </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="audio/*"
-                  className="hidden"
-                  onChange={handleVoiceUpload}
-                />
-                <Button
-                  variant="outline"
-                  className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={voiceUploading}
-                >
-                  {voiceUploading ? "Uploading..." : "Upload Voice Sample"}
-                </Button>
-                {voiceStatus && (
-                  <span
-                    className={`text-xs ${
-                      voiceStatus.startsWith("Error")
-                        ? "text-red-400"
-                        : "text-green-400"
-                    }`}
-                  >
-                    {voiceStatus}
-                  </span>
-                )}
+              <div className="flex items-center gap-3 rounded-lg border border-purple-500/20 bg-purple-950/10 px-4 py-3">
+                <span className="rounded-full bg-purple-500/10 border border-purple-500/30 px-2.5 py-0.5 text-[10px] font-medium text-purple-400 uppercase tracking-wider">
+                  Coming Soon
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Voice cloning is on its way — your twin will speak in your voice.
+                </p>
               </div>
-              {profile.voice_id && (
-                <div className="rounded-md border border-green-500/20 bg-green-500/5 px-3 py-2">
-                  <p className="text-xs text-green-400">
-                    Voice sample configured. Your AI twin will use your cloned
-                    voice.
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -724,6 +696,7 @@ export function DashboardClient({
         onOpenChange={setCheckoutOpen}
         tier={checkoutTier}
         price={tierInfo[checkoutTier].price}
+        billingPeriod="monthly"
         features={tierInfo[checkoutTier].features}
         onSuccess={(tier) => setActivePlan(tier)}
       />

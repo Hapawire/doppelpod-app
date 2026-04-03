@@ -538,6 +538,11 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
                 }}
                 disabled={videoLoading}
               />
+              {avatarFile && (
+                <p className="text-[11px] text-amber-400/80">
+                  ⏱ Videos with your photo take longer to generate than the default avatar.
+                </p>
+              )}
               <VideoPlayer
                 videoUrl={videoUrl}
                 videoLoading={videoLoading}

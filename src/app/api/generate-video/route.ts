@@ -40,28 +40,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If user uploaded a photo, upload it as an asset and use as talking_photo
-    let talkingPhotoUrl: string | undefined;
+    // If user uploaded a photo, upload it as an asset for a talking photo
+    let talkingPhotoId: string | undefined;
     if (avatarPhoto && avatarPhoto.size > 0) {
-      console.log("[generate-video] Uploading photo as asset for talking_photo...");
+      console.log("[generate-video] Uploading photo asset for talking photo...");
       const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
 
-      const uploadRes = await fetch("https://upload.heygen.com/v1/asset", {
+      const assetRes = await fetch("https://upload.heygen.com/v1/asset", {
         method: "POST",
         headers: {
           "X-Api-Key": apiKey,
-          "Content-Type": avatarPhoto.type || "image/jpeg",
+          "Content-Type": avatarPhoto.type,
         },
         body: photoBuffer,
       });
 
-      if (uploadRes.ok) {
-        const uploadData = await uploadRes.json();
-        talkingPhotoUrl = uploadData.data?.url;
-        console.log("[generate-video] Photo uploaded, talking_photo url:", talkingPhotoUrl);
+      if (assetRes.ok) {
+        const assetData = await assetRes.json();
+        talkingPhotoId = assetData.data?.url;
+        console.log("[generate-video] Photo asset uploaded:", talkingPhotoId);
       } else {
-        const errBody = await uploadRes.text().catch(() => "");
-        console.warn("[generate-video] Photo upload failed, using default. Status:", uploadRes.status, errBody);
+        const errBody = await assetRes.text().catch(() => "");
+        console.warn(
+          "[generate-video] Photo upload failed, using default avatar. Status:",
+          assetRes.status,
+          errBody
+        );
       }
     }
 
@@ -127,8 +131,8 @@ export async function POST(req: NextRequest) {
     const videoPayload: Record<string, unknown> = {
       video_inputs: [
         {
-          character: talkingPhotoUrl
-            ? { type: "talking_photo", talking_photo_id: talkingPhotoUrl }
+          character: talkingPhotoId
+            ? { type: "talking_photo", talking_photo_id: talkingPhotoId }
             : {
                 type: "avatar",
                 avatar_id: "Daisy-inskirt-20220818",
