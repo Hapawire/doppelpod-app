@@ -40,38 +40,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If user uploaded a photo, create an instant avatar first
-    let avatarId: string | undefined;
+    // If user uploaded a photo, upload it as an asset and use as talking_photo
+    let talkingPhotoUrl: string | undefined;
     if (avatarPhoto && avatarPhoto.size > 0) {
-      console.log("[generate-video] Creating instant avatar from uploaded photo...");
+      console.log("[generate-video] Uploading photo as asset for talking_photo...");
       const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
-      const photoFormData = new FormData();
-      photoFormData.append(
-        "image",
-        new Blob([photoBuffer], { type: avatarPhoto.type }),
-        avatarPhoto.name
-      );
 
-      const avatarRes = await fetch(
-        "https://api.heygen.com/v1/photo_avatar.create",
-        {
-          method: "POST",
-          headers: { "X-Api-Key": apiKey },
-          body: photoFormData,
-        }
-      );
+      const uploadRes = await fetch("https://upload.heygen.com/v1/asset", {
+        method: "POST",
+        headers: {
+          "X-Api-Key": apiKey,
+          "Content-Type": avatarPhoto.type || "image/jpeg",
+        },
+        body: photoBuffer,
+      });
 
-      if (avatarRes.ok) {
-        const avatarData = await avatarRes.json();
-        avatarId = avatarData.data?.photo_avatar_id;
-        console.log("[generate-video] Created avatar:", avatarId);
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        talkingPhotoUrl = uploadData.data?.url;
+        console.log("[generate-video] Photo uploaded, talking_photo url:", talkingPhotoUrl);
       } else {
-        const errBody = await avatarRes.text().catch(() => "");
-        console.warn(
-          "[generate-video] Avatar creation failed, using default. Status:",
-          avatarRes.status,
-          errBody
-        );
+        const errBody = await uploadRes.text().catch(() => "");
+        console.warn("[generate-video] Photo upload failed, using default. Status:", uploadRes.status, errBody);
       }
     }
 
@@ -137,8 +127,8 @@ export async function POST(req: NextRequest) {
     const videoPayload: Record<string, unknown> = {
       video_inputs: [
         {
-          character: avatarId
-            ? { type: "photo_avatar", photo_avatar_id: avatarId }
+          character: talkingPhotoUrl
+            ? { type: "talking_photo", talking_photo_id: talkingPhotoUrl }
             : {
                 type: "avatar",
                 avatar_id: "Daisy-inskirt-20220818",
