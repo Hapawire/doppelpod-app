@@ -41,7 +41,24 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState("");
+  const [isPhotoJob, setIsPhotoJob] = useState(false);
   const videoPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Saved avatar state
+  const [savedAvatarId, setSavedAvatarId] = useState<string | null>(null);
+  const [useSavedAvatar, setUseSavedAvatar] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user-avatars")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.avatarId) {
+          setSavedAvatarId(data.avatarId);
+          setUseSavedAvatar(true); // default to saved avatar if one exists
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Track audio progress
   useEffect(() => {
@@ -203,11 +220,18 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
     setVideoProgress(0);
     setVideoUrl(null);
     setVideoError("");
+    const usingNewPhoto = !useSavedAvatar && !!avatarFile;
+    const usingPhoto = useSavedAvatar ? !!savedAvatarId : !!avatarFile;
+    setIsPhotoJob(usingPhoto);
 
     try {
       const formData = new FormData();
       formData.append("script", output);
-      if (avatarFile) formData.append("avatar", avatarFile);
+      if (useSavedAvatar && savedAvatarId) {
+        formData.append("savedAvatarId", savedAvatarId);
+      } else if (usingNewPhoto && avatarFile) {
+        formData.append("avatar", avatarFile);
+      }
 
       const res = await fetch("/api/generate-video", {
         method: "POST",
@@ -226,39 +250,31 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
         return;
       }
 
-      const videoId = data.videoId;
+      const { jobId } = data;
+
+      // New photo upload needs avatar creation (15-25 min); saved avatar or default ~3-5 min
+      const timeoutSecs = usingNewPhoto ? 35 * 60 : 10 * 60;
+      const maxProgressSecs = usingNewPhoto ? 25 * 60 : 5 * 60;
 
       let elapsed = 0;
       let consecutiveErrors = 0;
       videoPollingRef.current = setInterval(async () => {
-        elapsed += 3;
-        let progress: number;
-        if (elapsed < 30) {
-          progress = (elapsed / 30) * 30;
-        } else if (elapsed < 120) {
-          progress = 30 + ((elapsed - 30) / 90) * 40;
-        } else {
-          progress = 70 + ((elapsed - 120) / 180) * 20;
-        }
-        setVideoProgress(Math.min(90, progress));
+        elapsed += 10;
+        setVideoProgress(Math.min(90, (elapsed / maxProgressSecs) * 90));
 
         try {
-          const statusRes = await fetch(`/api/video-status?videoId=${videoId}`);
-          const statusData = await statusRes.json();
+          const statusRes = await fetch(`/api/video-jobs/${jobId}`);
+          const job = await statusRes.json();
           consecutiveErrors = 0;
 
-          if (statusData.status === "completed" && statusData.videoUrl) {
+          if (job.status === "completed" && job.heygen_video_url) {
             if (videoPollingRef.current) clearInterval(videoPollingRef.current);
             setVideoProgress(100);
-            setVideoUrl(statusData.videoUrl);
+            setVideoUrl(job.heygen_video_url);
             setVideoLoading(false);
-          } else if (statusData.status === "failed") {
+          } else if (job.status === "failed") {
             if (videoPollingRef.current) clearInterval(videoPollingRef.current);
-            const detail = statusData.error?.detail || statusData.error?.message;
-            const msg = detail
-              ? `Video generation failed: ${detail}`
-              : "Video generation failed. Please try again.";
-            setVideoError(msg);
+            setVideoError(job.error_message || "Video generation failed. Please try again.");
             setVideoLoading(false);
           }
         } catch {
@@ -270,12 +286,12 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
           }
         }
 
-        if (elapsed > 300) {
+        if (elapsed > timeoutSecs) {
           if (videoPollingRef.current) clearInterval(videoPollingRef.current);
           setVideoError("Video generation timed out. Please try again.");
           setVideoLoading(false);
         }
-      }, 3000);
+      }, 10000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Video generation failed";
       setVideoError(msg);
@@ -528,19 +544,56 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
                 TALKING VIDEO AVATAR
                 <UsageBadge feature="video" />
               </p>
-              <AvatarUpload
-                file={avatarFile}
-                preview={avatarPreview}
-                onFileChange={(file, preview) => {
-                  if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-                  setAvatarFile(file);
-                  setAvatarPreview(preview);
-                }}
-                disabled={videoLoading}
-              />
-              {avatarFile && (
+
+              {/* Saved avatar toggle */}
+              {savedAvatarId && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setUseSavedAvatar(true)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                      useSavedAvatar
+                        ? "border-purple-500 bg-purple-500/15 text-purple-300"
+                        : "border-border/50 text-muted-foreground hover:border-purple-500/30 hover:text-purple-400"
+                    }`}
+                  >
+                    <span className="block text-[10px] mb-0.5 opacity-60">SAVED</span>
+                    Use my avatar
+                  </button>
+                  <button
+                    onClick={() => setUseSavedAvatar(false)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                      !useSavedAvatar
+                        ? "border-purple-500 bg-purple-500/15 text-purple-300"
+                        : "border-border/50 text-muted-foreground hover:border-purple-500/30 hover:text-purple-400"
+                    }`}
+                  >
+                    <span className="block text-[10px] mb-0.5 opacity-60">15–25 MIN</span>
+                    Upload new photo
+                  </button>
+                </div>
+              )}
+
+              {/* Photo upload — only shown when not using saved avatar */}
+              {!useSavedAvatar && (
+                <AvatarUpload
+                  file={avatarFile}
+                  preview={avatarPreview}
+                  onFileChange={(file, preview) => {
+                    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+                    setAvatarFile(file);
+                    setAvatarPreview(preview);
+                  }}
+                  disabled={videoLoading}
+                />
+              )}
+              {!useSavedAvatar && avatarFile && !videoLoading && (
                 <p className="text-[11px] text-amber-400/80">
-                  ⏱ Videos with your photo take longer to generate than the default avatar.
+                  ⏱ Custom photo videos take 15–25 min to generate. We&apos;ll email you when it&apos;s ready.
+                </p>
+              )}
+              {!useSavedAvatar && avatarFile && videoLoading && isPhotoJob && (
+                <p className="text-[11px] text-purple-400/80">
+                  Your video is being processed — we&apos;ll email you when it&apos;s ready. You can close this page.
                 </p>
               )}
               <VideoPlayer
