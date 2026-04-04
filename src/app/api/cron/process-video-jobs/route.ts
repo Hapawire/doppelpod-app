@@ -150,7 +150,12 @@ async function processJob(
       const elapsed = now - new Date(job.updated_at as string).getTime();
       if (elapsed > AVATAR_TIMEOUT_MS) return fail("Photo avatar training timed out after 60 minutes.");
 
-      const groupId = job.heygen_avatar_id as string;
+      const groupId = job.heygen_avatar_id as string | null;
+      if (!groupId) {
+        console.log(`[process-video-jobs] Job ${job.id}: awaiting_avatar with no group_id — restarting creating_avatar`);
+        await update({ status: "creating_avatar", retry_count: 0, heygen_generation_id: null });
+        return "advanced";
+      }
       console.log(`[process-video-jobs] Job ${job.id}: polling training status for group ${groupId}`);
 
       try {
