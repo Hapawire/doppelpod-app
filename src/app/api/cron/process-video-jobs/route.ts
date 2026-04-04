@@ -4,7 +4,7 @@ import { Resend } from "resend";
 import { buildVideoReadyEmail } from "@/lib/video-ready-email";
 import { incrementUsage } from "@/lib/api-gate";
 
-const AVATAR_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+const AVATAR_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const VIDEO_TIMEOUT_MS  = 10 * 60 * 1000; // 10 minutes
 const MAX_RETRIES = 3;
 
@@ -99,35 +99,47 @@ async function processJob(
     }
 
     case "creating_avatar": {
-      console.log(`[process-video-jobs] Job ${job.id}: creating photo avatar`);
+      console.log(`[process-video-jobs] Job ${job.id}: creating avatar group`);
       try {
-        const res = await fetch("https://api.heygen.com/v2/photo_avatar/photo/generate", {
+        // Step 1: Create avatar group from uploaded image
+        const createRes = await fetch("https://api.heygen.com/v2/photo_avatar/avatar_group/create", {
           method: "POST",
           headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
           body: JSON.stringify({
-            image_key: job.heygen_image_key,
             name: `avatar_${(job.id as string).slice(0, 8)}`,
-            age: "Unspecified",
-            gender: "Unspecified",
-            ethnicity: "Unspecified",
-            orientation: "vertical",
-            pose: "half_body",
-            style: "Realistic",
-            appearance: "Professional appearance, neutral background, good lighting.",
+            image_key: job.heygen_image_key,
           }),
         });
 
-        if (!res.ok) {
-          const body = await res.text().catch(() => "");
-          console.error(`[process-video-jobs] Avatar create failed ${res.status}:`, body);
-          return retry(`HeyGen avatar create: ${res.status} ${body.slice(0, 200)}`);
+        if (!createRes.ok) {
+          const body = await createRes.text().catch(() => "");
+          console.error(`[process-video-jobs] Avatar group create failed ${createRes.status}:`, body);
+          return retry(`HeyGen avatar_group/create: ${createRes.status} ${body.slice(0, 200)}`);
         }
 
-        const data = await res.json();
-        const generationId = data?.data?.generation_id;
-        if (!generationId) return fail("No generation_id in avatar create response");
+        const createData = await createRes.json();
+        console.log(`[process-video-jobs] Job ${job.id}: avatar_group/create response:`, JSON.stringify(createData));
+        const groupId = createData?.data?.group_id ?? createData?.data?.id;
+        if (!groupId) return fail(`No group_id in avatar group create response: ${JSON.stringify(createData)}`);
 
-        await update({ status: "awaiting_avatar", heygen_generation_id: generationId });
+        // Step 2: Start training
+        const trainRes = await fetch("https://api.heygen.com/v2/photo_avatar/train", {
+          method: "POST",
+          headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ group_id: groupId }),
+        });
+
+        const trainBody = await trainRes.text();
+        console.log(`[process-video-jobs] Job ${job.id}: train response ${trainRes.status}:`, trainBody);
+
+        if (!trainRes.ok) {
+          return retry(`HeyGen avatar train: ${trainRes.status} ${trainBody.slice(0, 200)}`);
+        }
+
+        // group_id IS the talking_photo_id — store it now
+        const { error: updateErr } = await db.from("video_jobs").update({ status: "awaiting_avatar", heygen_avatar_id: groupId }).eq("id", job.id);
+        if (updateErr) console.error(`[process-video-jobs] Job ${job.id}: update error:`, updateErr);
+        console.log(`[process-video-jobs] Job ${job.id}: training started, group_id=${groupId}, updateErr=${JSON.stringify(updateErr)}`);
         return "advanced";
       } catch (err) {
         return retry(`Avatar create network error: ${err}`);
@@ -136,39 +148,39 @@ async function processJob(
 
     case "awaiting_avatar": {
       const elapsed = now - new Date(job.updated_at as string).getTime();
-      if (elapsed > AVATAR_TIMEOUT_MS) return fail("Photo avatar creation timed out after 15 minutes.");
+      if (elapsed > AVATAR_TIMEOUT_MS) return fail("Photo avatar training timed out after 60 minutes.");
 
-      const generationId = job.heygen_generation_id as string;
-      console.log(`[process-video-jobs] Job ${job.id}: polling avatar ${generationId}`);
+      const groupId = job.heygen_avatar_id as string;
+      console.log(`[process-video-jobs] Job ${job.id}: polling training status for group ${groupId}`);
 
       try {
         const res = await fetch(
-          `https://api.heygen.com/v2/photo_avatar/photo/generate/${generationId}`,
+          `https://api.heygen.com/v2/photo_avatar/train/status/${groupId}`,
           { headers: { "X-Api-Key": heygenKey } }
         );
 
         if (!res.ok) {
           const body = await res.text().catch(() => "");
-          console.warn(`[process-video-jobs] Avatar poll failed ${res.status}:`, body);
+          console.warn(`[process-video-jobs] Training poll failed ${res.status}:`, body);
           return "waiting";
         }
 
         const data = await res.json();
         const status = data?.data?.status as string;
+        console.log(`[process-video-jobs] Job ${job.id}: training status=${status}`);
 
-        if (status === "success") {
-          const avatarId = data?.data?.talking_photo_id;
-          if (!avatarId) return fail("No talking_photo_id in avatar poll response");
-          await update({ status: "generating_video", heygen_avatar_id: avatarId });
+        if (status === "ready") {
+          // group_id is already stored as heygen_avatar_id — go straight to video
+          await update({ status: "generating_video" });
           return "advanced";
         } else if (status === "failed") {
-          return fail(`Photo avatar generation failed: ${data?.data?.error || "unknown"}`);
+          return fail(`Photo avatar training failed: ${data?.data?.error_msg || "unknown"}`);
         }
 
-        // Still processing — no-op
+        // Still training — no-op
         return "waiting";
       } catch (err) {
-        console.warn(`[process-video-jobs] Avatar poll error:`, err);
+        console.warn(`[process-video-jobs] Training poll error:`, err);
         return "waiting";
       }
     }
