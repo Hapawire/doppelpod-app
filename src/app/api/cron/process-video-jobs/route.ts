@@ -104,7 +104,17 @@ async function processJob(
         const res = await fetch("https://api.heygen.com/v2/photo_avatar/photo/generate", {
           method: "POST",
           headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ image_key: job.heygen_image_key, name: `avatar_${(job.id as string).slice(0, 8)}`, age: "Unspecified", gender: "Man" }),
+          body: JSON.stringify({
+            image_key: job.heygen_image_key,
+            name: `avatar_${(job.id as string).slice(0, 8)}`,
+            age: "Unspecified",
+            gender: "Unspecified",
+            ethnicity: "Unspecified",
+            orientation: "vertical",
+            pose: "half_body",
+            style: "Realistic",
+            appearance: "Professional appearance, neutral background, good lighting.",
+          }),
         });
 
         if (!res.ok) {
