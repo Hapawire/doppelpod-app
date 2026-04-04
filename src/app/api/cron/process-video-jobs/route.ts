@@ -118,28 +118,12 @@ async function processJob(
         }
 
         const createData = await createRes.json();
-        console.log(`[process-video-jobs] Job ${job.id}: avatar_group/create response:`, JSON.stringify(createData));
         const groupId = createData?.data?.group_id ?? createData?.data?.id;
         if (!groupId) return fail(`No group_id in avatar group create response: ${JSON.stringify(createData)}`);
 
-        // Step 2: Start training
-        const trainRes = await fetch("https://api.heygen.com/v2/photo_avatar/train", {
-          method: "POST",
-          headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ group_id: groupId }),
-        });
-
-        const trainBody = await trainRes.text();
-        console.log(`[process-video-jobs] Job ${job.id}: train response ${trainRes.status}:`, trainBody);
-
-        if (!trainRes.ok) {
-          return retry(`HeyGen avatar train: ${trainRes.status} ${trainBody.slice(0, 200)}`);
-        }
-
-        // group_id IS the talking_photo_id — store it now
-        const { error: updateErr } = await db.from("video_jobs").update({ status: "awaiting_avatar", heygen_avatar_id: groupId }).eq("id", job.id);
-        if (updateErr) console.error(`[process-video-jobs] Job ${job.id}: update error:`, updateErr);
-        console.log(`[process-video-jobs] Job ${job.id}: training started, group_id=${groupId}, updateErr=${JSON.stringify(updateErr)}`);
+        // Store group_id immediately — train is called later once group is ready
+        await update({ status: "awaiting_avatar", heygen_avatar_id: groupId, heygen_generation_id: null });
+        console.log(`[process-video-jobs] Job ${job.id}: group created, group_id=${groupId}, waiting for group to be ready before training`);
         return "advanced";
       } catch (err) {
         return retry(`Avatar create network error: ${err}`);
@@ -156,7 +140,8 @@ async function processJob(
         await update({ status: "creating_avatar", retry_count: 0, heygen_generation_id: null });
         return "advanced";
       }
-      console.log(`[process-video-jobs] Job ${job.id}: polling training status for group ${groupId}`);
+      const trainCalled = !!(job.heygen_generation_id as string | null);
+      console.log(`[process-video-jobs] Job ${job.id}: polling group ${groupId}, trainCalled=${trainCalled}`);
 
       try {
         const res = await fetch(
@@ -166,24 +151,41 @@ async function processJob(
 
         if (!res.ok) {
           const body = await res.text().catch(() => "");
-          console.warn(`[process-video-jobs] Training poll failed ${res.status}:`, body);
+          console.warn(`[process-video-jobs] Train status poll failed ${res.status}:`, body);
           return "waiting";
         }
 
         const data = await res.json();
         const status = data?.data?.status as string;
-        console.log(`[process-video-jobs] Job ${job.id}: training status=${status}`);
+        console.log(`[process-video-jobs] Job ${job.id}: train/status=${status}, trainCalled=${trainCalled}`);
 
-        if (status === "ready") {
-          // group_id is already stored as heygen_avatar_id — go straight to video
-          await update({ status: "generating_video" });
-          return "advanced";
-        } else if (status === "failed") {
-          return fail(`Photo avatar training failed: ${data?.data?.error_msg || "unknown"}`);
+        if (!trainCalled) {
+          // Phase 1: waiting for group to be ready before calling train
+          if (status === "ready") {
+            const trainRes = await fetch("https://api.heygen.com/v2/photo_avatar/train", {
+              method: "POST",
+              headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
+              body: JSON.stringify({ group_id: groupId }),
+            });
+            const trainBody = await trainRes.text();
+            console.log(`[process-video-jobs] Job ${job.id}: train response ${trainRes.status}:`, trainBody);
+            if (!trainRes.ok) return retry(`HeyGen train: ${trainRes.status} ${trainBody.slice(0, 200)}`);
+            const flowId = JSON.parse(trainBody)?.data?.data?.flow_id ?? "started";
+            await update({ heygen_generation_id: flowId });
+            return "waiting";
+          }
+          // Still pending — group not ready yet
+          return "waiting";
+        } else {
+          // Phase 2: train was called, waiting for training to complete
+          if (status === "ready") {
+            await update({ status: "generating_video" });
+            return "advanced";
+          } else if (status === "failed") {
+            return fail(`Photo avatar training failed: ${data?.data?.error_msg || "unknown"}`);
+          }
+          return "waiting";
         }
-
-        // Still training — no-op
-        return "waiting";
       } catch (err) {
         console.warn(`[process-video-jobs] Training poll error:`, err);
         return "waiting";
