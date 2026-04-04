@@ -118,8 +118,9 @@ async function processJob(
         }
 
         const createData = await createRes.json();
+        console.log(`[process-video-jobs] Job ${job.id}: avatar_group/create response:`, JSON.stringify(createData));
         const groupId = createData?.data?.group_id ?? createData?.data?.id;
-        if (!groupId) return fail("No group_id in avatar group create response");
+        if (!groupId) return fail(`No group_id in avatar group create response: ${JSON.stringify(createData)}`);
 
         // Step 2: Start training
         const trainRes = await fetch("https://api.heygen.com/v2/photo_avatar/train", {
@@ -128,15 +129,17 @@ async function processJob(
           body: JSON.stringify({ group_id: groupId }),
         });
 
+        const trainBody = await trainRes.text();
+        console.log(`[process-video-jobs] Job ${job.id}: train response ${trainRes.status}:`, trainBody);
+
         if (!trainRes.ok) {
-          const body = await trainRes.text().catch(() => "");
-          console.error(`[process-video-jobs] Avatar train failed ${trainRes.status}:`, body);
-          return retry(`HeyGen avatar train: ${trainRes.status} ${body.slice(0, 200)}`);
+          return retry(`HeyGen avatar train: ${trainRes.status} ${trainBody.slice(0, 200)}`);
         }
 
         // group_id IS the talking_photo_id — store it now
-        await update({ status: "awaiting_avatar", heygen_avatar_id: groupId });
-        console.log(`[process-video-jobs] Job ${job.id}: training started, group_id=${groupId}`);
+        const { error: updateErr } = await db.from("video_jobs").update({ status: "awaiting_avatar", heygen_avatar_id: groupId }).eq("id", job.id);
+        if (updateErr) console.error(`[process-video-jobs] Job ${job.id}: update error:`, updateErr);
+        console.log(`[process-video-jobs] Job ${job.id}: training started, group_id=${groupId}, updateErr=${JSON.stringify(updateErr)}`);
         return "advanced";
       } catch (err) {
         return retry(`Avatar create network error: ${err}`);
