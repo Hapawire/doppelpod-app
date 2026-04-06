@@ -10,8 +10,14 @@ Accessible to any team member from any session.
 - **Current**: ElevenLabs Starter plan (30k chars/month), using default "Jessica" voice
 - **Next step**: Upgrade to 100k character plan before opening to more users
 - **Feature**: Allow users to upload a voice sample → clone via ElevenLabs → store voice ID on profile → use for all their videos
-- **Alternative providers to evaluate**: Play.ht (cheaper, comparable quality, similar API, cloning capable)
-- **Decision point**: Validate that users actually want voice cloning before switching providers
+- **Multilingual is a dealbreaker feature** — must support open/global languages, not English-only
+- **ElevenLabs multilingual**: 29 languages, cross-lingual cloning (clone in English, speak in any language) — best in class
+- **Alternative providers evaluated**:
+  - Play.ht — 140+ languages but quality varies, site was down during evaluation
+  - Fish Audio — strong multilingual, cheaper, worth watching as cost fallback
+  - Cartesia — excellent quality, real-time latency focus, currently English-primary
+  - Resemble AI — good cloning realism, multilingual not a primary focus
+- **Decision**: Stay on ElevenLabs, upgrade to 100k chars/month, validate which languages users actually need before switching
 - **Pricing consideration**: Voice cloning costs money per clone — factor into tier pricing
 
 ---
