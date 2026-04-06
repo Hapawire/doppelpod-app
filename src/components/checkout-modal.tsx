@@ -35,12 +35,12 @@ export function CheckoutModal({
 
   // Map tiers to Stripe price IDs (set real IDs in production)
   const monthlyPriceIds: Record<string, string> = {
-    Pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || "price_pro_placeholder",
-    Elite: process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || "price_elite_placeholder",
+    pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || "price_pro_placeholder",
+    elite: process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || "price_elite_placeholder",
   };
   const yearlyPriceIds: Record<string, string> = {
-    Pro: process.env.NEXT_PUBLIC_STRIPE_YEARLY_PRO_PRICE_ID || "price_yearly_pro_placeholder",
-    Elite: process.env.NEXT_PUBLIC_STRIPE_YEARLY_ELITE_PRICE_ID || "price_yearly_elite_placeholder",
+    pro: process.env.NEXT_PUBLIC_STRIPE_YEARLY_PRO_PRICE_ID || "price_yearly_pro_placeholder",
+    elite: process.env.NEXT_PUBLIC_STRIPE_YEARLY_ELITE_PRICE_ID || "price_yearly_elite_placeholder",
   };
   const priceIds = billingPeriod === "yearly" ? yearlyPriceIds : monthlyPriceIds;
 
@@ -52,7 +52,7 @@ export function CheckoutModal({
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier, priceId: priceIds[tier] }),
+        body: JSON.stringify({ tier, priceId: priceIds[tier.toLowerCase()] }),
       });
 
       const data = await res.json();

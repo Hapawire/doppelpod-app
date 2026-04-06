@@ -109,7 +109,7 @@ export function DashboardClient({
 
   const tierInfo = {
     pro: {
-      price: "$29/mo",
+      price: "$29",
       features: [
         "Unlimited AI posts",
         "All platforms",
@@ -119,7 +119,7 @@ export function DashboardClient({
       ],
     },
     elite: {
-      price: "$69/mo",
+      price: "$69",
       features: [
         "Everything in Pro",
         "Claude Cowork",
@@ -488,9 +488,8 @@ export function DashboardClient({
                       size="sm"
                       className="w-full justify-start bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
                       onClick={() => {
-                        setCheckoutTier("pro");
-                        setCheckoutOpen(true);
                         setShowAccountSettings(false);
+                        setUpgradeModalOpen(true);
                       }}
                     >
                       Upgrade — Subscribe to a Plan
@@ -628,7 +627,7 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.15 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
           <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Generate</CardTitle>
@@ -646,7 +645,7 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.2 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
           <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Voice Clone</CardTitle>
@@ -759,7 +758,7 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.3 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => { setCheckoutTier("pro"); setCheckoutOpen(true); }} />}
+          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
           <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Past Generations</CardTitle>
@@ -849,7 +848,7 @@ export function DashboardClient({
       <CheckoutModal
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
-        tier={checkoutTier}
+        tier={checkoutTier.charAt(0).toUpperCase() + checkoutTier.slice(1)}
         price={tierInfo[checkoutTier].price}
         billingPeriod="monthly"
         features={tierInfo[checkoutTier].features}
