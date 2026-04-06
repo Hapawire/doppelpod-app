@@ -9,6 +9,7 @@ import { CheckoutModal } from "@/components/checkout-modal";
 import { FeedbackModal } from "@/components/feedback-modal";
 import { GenerateWidget } from "@/components/generate-widget";
 import { TIER_LIMITS } from "@/lib/tiers";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 
 interface Generation {
@@ -103,6 +104,7 @@ export function DashboardClient({
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutTier, setCheckoutTier] = useState<"pro" | "elite">("pro");
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [activePlan, setActivePlan] = useState(profile.tier);
 
   const tierInfo = {
@@ -404,29 +406,13 @@ export function DashboardClient({
                     : effectiveTier}
                 </span>
                 {(effectiveTier === "expired" || effectiveTier === "trial") && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
-                      onClick={() => {
-                        setCheckoutTier("pro");
-                        setCheckoutOpen(true);
-                      }}
-                    >
-                      Go Pro
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10"
-                      onClick={() => {
-                        setCheckoutTier("elite");
-                        setCheckoutOpen(true);
-                      }}
-                    >
-                      Go Elite
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
+                    onClick={() => setUpgradeModalOpen(true)}
+                  >
+                    Upgrade Now
+                  </Button>
                 )}
                 {effectiveTier === "pro" && (
                   <Button
@@ -827,6 +813,38 @@ export function DashboardClient({
           </Card>
         </motion.div>
       </main>
+
+      <Dialog open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg">Choose Your Plan</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            {(["pro", "elite"] as const).map((tier) => (
+              <button
+                key={tier}
+                onClick={() => {
+                  setUpgradeModalOpen(false);
+                  setCheckoutTier(tier);
+                  setCheckoutOpen(true);
+                }}
+                className="flex flex-col gap-2 rounded-lg border border-border/50 p-4 text-left hover:border-purple-500/50 hover:bg-purple-500/5 transition-colors"
+              >
+                <span className="font-semibold capitalize text-foreground">{tier}</span>
+                <span className="text-lg font-bold text-purple-400">{tierInfo[tier].price}</span>
+                <ul className="space-y-1 mt-1">
+                  {tierInfo[tier].features.map((f) => (
+                    <li key={f} className="text-xs text-muted-foreground flex items-start gap-1">
+                      <span className="text-purple-400 mt-0.5">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <CheckoutModal
         open={checkoutOpen}
