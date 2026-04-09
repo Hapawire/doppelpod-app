@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth-provider";
 import { CheckoutModal } from "@/components/checkout-modal";
 import { FeedbackModal } from "@/components/feedback-modal";
 import { GenerateWidget } from "@/components/generate-widget";
+import { VoiceRecorder } from "@/components/voice-recorder";
 import { TIER_LIMITS } from "@/lib/tiers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
@@ -342,6 +343,7 @@ export function DashboardClient({
   const [voiceStatus, setVoiceStatus] = useState<string | null>(
     profile.voice_id ? "Voice sample uploaded" : null
   );
+  const [voiceTab, setVoiceTab] = useState<"upload" | "record">("upload");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const tierColors: Record<string, string> = {
@@ -351,22 +353,13 @@ export function DashboardClient({
     elite: "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-pink-400 border-pink-500/30",
   };
 
-  async function handleVoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function uploadVoiceFile(file: File) {
     setVoiceUploading(true);
     setVoiceStatus(null);
-
     try {
       const formData = new FormData();
       formData.append("audio", file);
-
-      const res = await fetch("/api/voice/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("/api/voice/upload", { method: "POST", body: formData });
       if (res.ok) {
         setVoiceStatus("Voice sample uploaded successfully!");
       } else {
@@ -378,6 +371,12 @@ export function DashboardClient({
     } finally {
       setVoiceUploading(false);
     }
+  }
+
+  async function handleVoiceFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadVoiceFile(file);
   }
 
   return (
@@ -761,16 +760,62 @@ export function DashboardClient({
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Upload a voice sample to train your AI voice clone.
+                Give your AI twin your voice. Upload an existing file or record directly in the browser.
               </p>
-              <div className="flex items-center gap-3 rounded-lg border border-purple-500/20 bg-purple-950/10 px-4 py-3">
-                <span className="rounded-full bg-purple-500/10 border border-purple-500/30 px-2.5 py-0.5 text-[10px] font-medium text-purple-400 uppercase tracking-wider">
-                  Coming Soon
-                </span>
-                <p className="text-xs text-muted-foreground">
-                  Voice cloning is on its way — your twin will speak in your voice.
-                </p>
+
+              {/* Tab switcher */}
+              <div className="flex rounded-lg border border-border/50 p-0.5 bg-muted/30 text-sm">
+                {(["upload", "record"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setVoiceTab(tab)}
+                    className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors capitalize ${
+                      voiceTab === tab
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab === "upload" ? "Upload file" : "Record now"}
+                  </button>
+                ))}
               </div>
+
+              {/* Upload tab */}
+              {voiceTab === "upload" && (
+                <div className="space-y-3">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={handleVoiceFileInput}
+                  />
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={voiceUploading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/50 bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+                  >
+                    {voiceUploading ? "Uploading…" : "Choose audio file"}
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    MP3, WAV, M4A, OGG or WebM · max 25 MB · 15–60 seconds recommended
+                  </p>
+                </div>
+              )}
+
+              {/* Record tab */}
+              {voiceTab === "record" && (
+                <VoiceRecorder onUpload={uploadVoiceFile} uploading={voiceUploading} />
+              )}
+
+              {/* Status message */}
+              {voiceStatus && (
+                <p className={`text-xs ${voiceStatus.startsWith("Error") ? "text-destructive" : "text-green-400"}`}>
+                  {voiceStatus}
+                </p>
+              )}
+
+              {/* Saved avatar notice */}
               {profile.heygen_avatar_id && (
                 <div className="flex items-center gap-3 rounded-lg border border-green-500/20 bg-green-950/10 px-4 py-3">
                   <svg className="h-4 w-4 shrink-0 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
