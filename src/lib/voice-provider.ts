@@ -20,13 +20,13 @@ export interface VoiceProvider {
 
   /**
    * Generate speech audio from text using a voice ID.
-   * Returns a Buffer of audio/mpeg data.
+   * Returns an ArrayBuffer of audio/mpeg data.
    */
   generateSpeech(params: {
     text: string;
     voiceId: string;    // provider-specific ID from cloneVoice or a preset
     stability?: number; // 0–1, default 0.5
-  }): Promise<Buffer>;
+  }): Promise<ArrayBuffer>;
 
   /**
    * Delete a previously cloned voice. Best-effort — errors are logged, not thrown.

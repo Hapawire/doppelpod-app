@@ -81,7 +81,7 @@ export class ElevenLabsProvider implements VoiceProvider {
       throw new Error(`[ElevenLabs] generateSpeech failed ${res.status}: ${err}`);
     }
 
-    return Buffer.from(await res.arrayBuffer());
+    return res.arrayBuffer();
   }
 
   async deleteVoice(voiceId: string): Promise<void> {

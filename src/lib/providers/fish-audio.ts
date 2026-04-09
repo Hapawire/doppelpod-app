@@ -83,7 +83,7 @@ export class FishAudioProvider implements VoiceProvider {
       throw new Error(`[FishAudio] generateSpeech failed ${res.status}: ${err}`);
     }
 
-    return Buffer.from(await res.arrayBuffer());
+    return res.arrayBuffer();
   }
 
   async deleteVoice(voiceId: string): Promise<void> {
