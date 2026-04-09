@@ -43,6 +43,21 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
   async function startRecording() {
     setErrorMsg(null);
     setState("requesting");
+
+    // Check permission state first — if already denied, no dialog will ever appear
+    try {
+      const perm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+      if (perm.state === "denied") {
+        setErrorMsg(
+          "Microphone access is blocked. Click the lock icon in your browser's address bar, set Microphone to 'Allow', then reload the page."
+        );
+        setState("error");
+        return;
+      }
+    } catch {
+      // permissions API not supported in this browser — fall through to getUserMedia
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -70,9 +85,16 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
       setState("recording");
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[VoiceRecorder] mic error:", err);
-      setErrorMsg("Microphone access denied. Please allow mic access and try again.");
+      const name = (err as { name?: string })?.name;
+      const msg =
+        name === "NotAllowedError" || name === "PermissionDeniedError"
+          ? "Microphone access was denied. Click the lock icon in your browser's address bar, set Microphone to 'Allow', then reload the page."
+          : name === "NotFoundError"
+          ? "No microphone found. Please connect a microphone and try again."
+          : "Could not access microphone. Please check your browser settings and try again.";
+      setErrorMsg(msg);
       setState("error");
     }
   }
