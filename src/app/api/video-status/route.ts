@@ -18,6 +18,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Ownership check — verify this video belongs to the requesting user
+    const { data: job } = await supabase
+      .from("video_jobs")
+      .select("id")
+      .eq("heygen_video_id", videoId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!job) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    }
+
     const apiKey = process.env.HEYGEN_API_KEY;
     if (!apiKey) {
       return NextResponse.json(

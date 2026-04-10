@@ -13,6 +13,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate tier is a purchasable value — reject anything else
+    const VALID_TIERS = ["pro", "elite"] as const;
+    if (!VALID_TIERS.includes(tier)) {
+      return NextResponse.json({ error: "Invalid tier." }, { status: 400 });
+    }
+
+    // Validate priceId format (Stripe price IDs start with "price_")
+    if (typeof priceId !== "string" || !priceId.startsWith("price_")) {
+      return NextResponse.json({ error: "Invalid priceId." }, { status: 400 });
+    }
+
     const secretKey = process.env.STRIPE_SECRET_KEY;
     if (!secretKey) {
       console.error("[checkout] STRIPE_SECRET_KEY is not configured");

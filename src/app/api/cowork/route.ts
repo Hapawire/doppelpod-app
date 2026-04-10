@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { checkFeatureAccess, incrementUsage } from "@/lib/api-gate";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: access.error, gated: true }, { status: 403 });
       }
       coworkVoiceChat = access.coworkVoiceChat ?? false;
+
+      // Rate limit: 60 cowork messages per hour per user
+      const rl = checkRateLimit(`cowork:${user.id}`, 60, 60 * 60 * 1000);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: "Too many requests. Please wait before sending more messages." },
+          { status: 429 }
+        );
+      }
+
       // Increment usage
       await incrementUsage(supabase, user.id, "cowork").catch(() => {});
     }
@@ -26,6 +37,19 @@ export async function POST(req: NextRequest) {
         { error: "No messages provided." },
         { status: 400 }
       );
+    }
+
+    // Validate each message: role must be "user" or "assistant", content must be a non-empty string
+    for (const m of messages) {
+      if (m.role !== "user" && m.role !== "assistant") {
+        return NextResponse.json({ error: "Invalid message role." }, { status: 400 });
+      }
+      if (typeof m.content !== "string" || !m.content.trim()) {
+        return NextResponse.json({ error: "Invalid message content." }, { status: 400 });
+      }
+      if (m.content.length > 10000) {
+        return NextResponse.json({ error: "Message too long." }, { status: 400 });
+      }
     }
 
     // Sanitise user-supplied inputs injected into system prompt — cap length to limit injection surface
