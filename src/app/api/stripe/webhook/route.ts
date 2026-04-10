@@ -72,6 +72,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
+  // Idempotency — deduplicate retried events
+  const { error: insertErr } = await supabase
+    .from("stripe_events")
+    .insert({ event_id: event.id });
+
+  if (insertErr?.code === "23505") {
+    // Already processed — return 200 to stop Stripe retrying
+    console.log(`[stripe-webhook] Duplicate event ignored: ${event.id}`);
+    return NextResponse.json({ received: true });
+  }
+
   // --- checkout.session.completed ---
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;

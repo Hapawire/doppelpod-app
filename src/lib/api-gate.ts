@@ -173,51 +173,16 @@ export async function incrementUsage(
   // All usage increments use service role — UPDATE policy removed from user RLS
   const admin = getAdmin();
 
+  // Atomic upsert via DB function — eliminates read-then-write race condition
   if (feature === "video") {
-    const { data } = await supabase
-      .from("usage_tracking")
-      .select("video_count")
-      .eq("user_id", userId)
-      .eq("period", period)
-      .single();
-
-    if (data) {
-      await admin
-        .from("usage_tracking")
-        .update({ video_count: (data.video_count || 0) + 1 })
-        .eq("user_id", userId)
-        .eq("period", period);
-    } else {
-      // Row missing — insert fresh with count of 1 so the increment is never lost
-      await admin
-        .from("usage_tracking")
-        .insert({ user_id: userId, period, video_count: 1 });
-    }
+    await admin.rpc("increment_video_usage", { p_user_id: userId, p_period: period });
   }
 
   if (feature === "cowork") {
-    const { data } = await supabase
-      .from("usage_tracking")
-      .select("cowork_sessions, cowork_sessions_today")
-      .eq("user_id", userId)
-      .eq("period", period)
-      .single();
-
-    if (data) {
-      await admin
-        .from("usage_tracking")
-        .update({
-          cowork_sessions: (data.cowork_sessions || 0) + 1,
-          cowork_sessions_today: (data.cowork_sessions_today || 0) + 1,
-          last_cowork_date: today,
-        })
-        .eq("user_id", userId)
-        .eq("period", period);
-    } else {
-      // Row missing — insert fresh with count of 1
-      await admin
-        .from("usage_tracking")
-        .insert({ user_id: userId, period, cowork_sessions: 1, cowork_sessions_today: 1, last_cowork_date: today });
-    }
+    await admin.rpc("increment_cowork_usage", {
+      p_user_id: userId,
+      p_period: period,
+      p_today: today,
+    });
   }
 }
