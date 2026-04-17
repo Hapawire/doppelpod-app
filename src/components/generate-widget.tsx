@@ -28,6 +28,10 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
   const [tone, setTone] = useState<"professional" | "neutral" | "casual">("neutral");
   const [avoidSlang, setAvoidSlang] = useState(false);
 
+  // Video section discoverability — brief highlight when output first appears
+  const [videoSectionHighlight, setVideoSectionHighlight] = useState(false);
+  const prevOutputRef = useRef("");
+
   // Voice state
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsError, setTtsError] = useState("");
@@ -95,6 +99,16 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
       if (videoPollingRef.current) clearInterval(videoPollingRef.current);
     };
   }, []);
+
+  // Briefly highlight the video section when output first appears
+  useEffect(() => {
+    if (output && !prevOutputRef.current) {
+      setVideoSectionHighlight(true);
+      const t = setTimeout(() => setVideoSectionHighlight(false), 3000);
+      return () => clearTimeout(t);
+    }
+    prevOutputRef.current = output;
+  }, [output]);
 
   const cleanupAudio = useCallback(() => {
     if (audioRef.current) {
@@ -686,10 +700,15 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
 
           {/* Video Avatar Section */}
           <FeatureGate feature="video">
-            <div className="border-t border-purple-500/20 pt-4 space-y-4">
-              <p className="text-xs font-medium text-purple-400">
+            <div className={`border-t pt-4 space-y-4 transition-colors duration-700 ${videoSectionHighlight ? "border-purple-400/60" : "border-purple-500/20"}`}>
+              <p className="text-xs font-medium text-purple-400 flex items-center gap-2">
                 TALKING VIDEO AVATAR
                 <UsageBadge feature="video" />
+                {videoSectionHighlight && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/20 border border-purple-500/40 px-1.5 py-0.5 text-[10px] font-semibold text-purple-300 animate-pulse">
+                    ↓ Try it
+                  </span>
+                )}
               </p>
 
               {/* Saved avatar toggle */}

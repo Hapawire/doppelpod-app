@@ -551,6 +551,28 @@ export function DashboardClient({
                 </div>
               )}
 
+              {/* Plan feature summary */}
+              <div className="border-t border-border/50 pt-3 space-y-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Plan includes</span>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className={limits.voice ? "text-foreground/70" : "text-muted-foreground/40 line-through"}>
+                    {limits.voice ? "✓" : "✗"} Voice clone
+                  </span>
+                  <span className={limits.video ? "text-foreground/70" : "text-muted-foreground/40 line-through"}>
+                    {limits.video ? "✓" : "✗"} Talking video{limits.videoLimit !== null ? ` (${limits.videoLimit}/mo)` : " (unlimited)"}
+                  </span>
+                  <span className={limits.cowork ? "text-foreground/70" : "text-muted-foreground/40 line-through"}>
+                    {limits.cowork ? "✓" : "✗"} Cowork{limits.coworkDailyLimit !== null ? ` (${limits.coworkDailyLimit}/day)` : " (unlimited)"}
+                  </span>
+                  <span className={limits.coworkVoiceChat ? "text-foreground/70" : "text-muted-foreground/40 line-through"}>
+                    {limits.coworkVoiceChat ? "✓" : "✗"} Cowork voice chat
+                  </span>
+                  <span className={limits.priorityRendering ? "text-foreground/70" : "text-muted-foreground/40 line-through"}>
+                    {limits.priorityRendering ? "✓" : "✗"} Priority rendering
+                  </span>
+                </div>
+              </div>
+
               {/* Account Actions */}
               {showAccountSettings && (
               <motion.div
