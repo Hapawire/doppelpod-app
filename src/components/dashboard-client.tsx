@@ -9,6 +9,7 @@ import { CheckoutModal } from "@/components/checkout-modal";
 import { FeedbackModal } from "@/components/feedback-modal";
 import { GenerateWidget } from "@/components/generate-widget";
 import { VoiceRecorder } from "@/components/voice-recorder";
+import { VoiceUploadZone } from "@/components/voice-upload-zone";
 import { TIER_LIMITS } from "@/lib/tiers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
@@ -344,7 +345,6 @@ export function DashboardClient({
     profile.voice_id ? "Voice sample uploaded" : null
   );
   const [voiceTab, setVoiceTab] = useState<"upload" | "record">("upload");
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const tierColors: Record<string, string> = {
     expired: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -371,12 +371,6 @@ export function DashboardClient({
     } finally {
       setVoiceUploading(false);
     }
-  }
-
-  async function handleVoiceFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadVoiceFile(file);
   }
 
   return (
@@ -782,25 +776,7 @@ export function DashboardClient({
 
               {/* Upload tab */}
               {voiceTab === "upload" && (
-                <div className="space-y-3">
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={handleVoiceFileInput}
-                  />
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    disabled={voiceUploading}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/50 bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-                  >
-                    {voiceUploading ? "Uploading…" : "Choose audio file"}
-                  </button>
-                  <p className="text-xs text-muted-foreground">
-                    MP3, WAV, M4A, OGG or WebM · max 25 MB · 15–60 seconds recommended
-                  </p>
-                </div>
+                <VoiceUploadZone onFile={uploadVoiceFile} uploading={voiceUploading} />
               )}
 
               {/* Record tab */}
