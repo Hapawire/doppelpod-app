@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Claude Cowork requires an API key. Upgrade to Elite to unlock.", fallback: true },
+        { error: "Claude Cowork is not available on your current plan. Upgrade to Elite to unlock.", fallback: true },
         { status: 503 }
       );
     }

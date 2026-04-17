@@ -157,8 +157,7 @@ export function VideoPlayer({
             <div className="space-y-1">
               <p className="text-xs text-amber-400">{videoError}</p>
               <p className="text-[10px] text-muted-foreground">
-                Get your API key at{" "}
-                <span className="text-purple-400">heygen.com &rarr; Settings &rarr; API</span>
+                If this keeps happening, contact support or try again in a moment.
               </p>
             </div>
           </div>

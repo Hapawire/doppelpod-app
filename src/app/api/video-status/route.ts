@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const apiKey = process.env.HEYGEN_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "HEYGEN_API_KEY not configured." },
+        { error: "Video status is temporarily unavailable. Please try again later." },
         { status: 503 }
       );
     }

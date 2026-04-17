@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.HEYGEN_API_KEY;
     if (!apiKey) {
       return NextResponse.json({
-        error: "Video generation not configured. Add HEYGEN_API_KEY to .env.local.",
+        error: "Video generation is temporarily unavailable. Please try again later.",
         fallback: true,
       }, { status: 503 });
     }
