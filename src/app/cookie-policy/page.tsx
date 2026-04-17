@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 
 export const metadata = {
   title: "Cookie Policy — DoppelPod",
@@ -89,12 +90,8 @@ export default function CookiePolicyPage() {
           </section>
         </div>
 
-        <div className="mt-12 flex gap-6 border-t border-border/50 pt-8 text-xs text-muted-foreground">
-          <Link href="/terms" className="transition-colors hover:text-foreground">Terms of Service</Link>
-          <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy Policy</Link>
-          <Link href="/" className="transition-colors hover:text-foreground">Home</Link>
-        </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

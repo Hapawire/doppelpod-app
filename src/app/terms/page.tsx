@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 
 export const metadata = {
   title: "Terms of Service — DoppelPod",
@@ -107,12 +108,8 @@ export default function TermsPage() {
           </section>
         </div>
 
-        <div className="mt-12 flex gap-6 border-t border-border/50 pt-8 text-xs text-muted-foreground">
-          <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy Policy</Link>
-          <Link href="/cookie-policy" className="transition-colors hover:text-foreground">Cookie Policy</Link>
-          <Link href="/" className="transition-colors hover:text-foreground">Home</Link>
-        </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

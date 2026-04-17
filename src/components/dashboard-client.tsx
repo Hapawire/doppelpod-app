@@ -10,6 +10,7 @@ import { FeedbackModal } from "@/components/feedback-modal";
 import { GenerateWidget } from "@/components/generate-widget";
 import { VoiceRecorder } from "@/components/voice-recorder";
 import { VoiceUploadZone } from "@/components/voice-upload-zone";
+import { SiteFooter } from "@/components/site-footer";
 import { TIER_LIMITS } from "@/lib/tiers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
@@ -1110,6 +1111,7 @@ export function DashboardClient({
           </div>
         </DialogContent>
       </Dialog>
+      <SiteFooter />
     </div>
   );
 }
