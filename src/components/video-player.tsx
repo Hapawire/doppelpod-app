@@ -99,7 +99,7 @@ export function VideoPlayer({
             </p>
           </div>
           <p className="text-[10px] text-muted-foreground text-center">
-            HeyGen is rendering your video — this typically takes 1-2 minutes
+            Your video is rendering — typically 3–5 minutes, or up to 25 min for a new photo avatar
           </p>
         </motion.div>
       )}

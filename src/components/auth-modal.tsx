@@ -237,6 +237,20 @@ export function AuthModal({
             </p>
           )}
 
+          {tab === "signup" && (
+            <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+              By creating an account you agree to our{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline underline-offset-2">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline underline-offset-2">
+                Privacy Policy
+              </a>
+              . We&apos;ll email you account and billing updates.
+            </p>
+          )}
+
           <Button
             type="submit"
             disabled={loading}

@@ -242,7 +242,7 @@ export default function Home() {
               Runs Social 24/7
             </span>
           </h1>
-          <p className="mx-auto max-w-2xl text-base text-muted-foreground sm:text-lg md:text-xl">
+          <p className="mx-auto max-w-2xl text-base text-foreground/75 sm:text-lg md:text-xl">
             Clone your voice, post, engage — autopilot. Let your AI twin build
             your brand while you sleep.
           </p>
@@ -483,7 +483,7 @@ export default function Home() {
             <h2 className="text-2xl font-bold sm:text-3xl md:text-4xl">
               See your AI twin in action
             </h2>
-            <p className="mt-3 text-sm text-muted-foreground sm:mt-4 sm:text-base">
+            <p className="mt-3 text-sm text-foreground/70 sm:mt-4 sm:text-base">
               Watch your AI twin transform your content in real time.
             </p>
           </motion.div>
@@ -514,10 +514,14 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border/50 px-4 py-8">
         <div className="mx-auto max-w-6xl flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
             <a href="#features" className="transition-colors hover:text-foreground">Features</a>
             <a href="#pricing" className="transition-colors hover:text-foreground">Pricing</a>
             <a href="#demo" className="transition-colors hover:text-foreground">Demo</a>
+            <span className="text-muted-foreground/30">|</span>
+            <a href="/terms" className="transition-colors hover:text-foreground">Terms</a>
+            <a href="/privacy" className="transition-colors hover:text-foreground">Privacy</a>
+            <a href="/cookie-policy" className="transition-colors hover:text-foreground">Cookies</a>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
             <svg

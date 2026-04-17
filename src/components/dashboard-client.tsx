@@ -427,7 +427,7 @@ export function DashboardClient({
             <span className="text-xl">&#9993;&#65039;</span>
             <div className="flex-1">
               <p className="text-sm font-medium text-yellow-400">Confirm your email to unlock all features</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Check your inbox for a confirmation link. Voice generation, video, Cowork, and data export are locked until confirmed.</p>
+              <p className="text-xs text-foreground/70 mt-0.5">Check your inbox for a confirmation link. Voice generation, video, Cowork, and data export are locked until confirmed.</p>
             </div>
             <Button
               size="sm"
@@ -446,7 +446,7 @@ export function DashboardClient({
           transition={{ duration: 0.4 }}
         >
           <h1 className="text-2xl font-bold sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-foreground/70">
             Manage your AI twin, view past generations, and upgrade your plan.
           </p>
         </motion.div>
@@ -569,7 +569,7 @@ export function DashboardClient({
                   <div className="rounded-lg border border-border/50 bg-muted/10 p-4 space-y-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">Communications Email</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-foreground/70 mt-0.5">
                         This is where DoppelPod sends video notifications, billing updates, and other messages.
                         It is <strong className="text-foreground">separate from your login email</strong> — changing it does not affect how you sign in.
                       </p>
@@ -759,7 +759,7 @@ export function DashboardClient({
               <CardTitle className="text-lg">Voice Clone</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-foreground/70">
                 Give your AI twin your voice. Upload an existing file or record directly in the browser.
               </p>
 
@@ -1037,7 +1037,7 @@ export function DashboardClient({
           <DialogHeader>
             <DialogTitle>Export Your Data</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-sm text-foreground/70 leading-relaxed">
             This will download a JSON file containing all of your DoppelPod data — generations, profile info, and usage history. No data will be deleted.
           </p>
           <div className="flex gap-2 pt-1">
@@ -1075,7 +1075,7 @@ export function DashboardClient({
             <DialogTitle className="text-red-400">Delete Account</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-foreground/70 leading-relaxed">
               This will <strong className="text-foreground">permanently delete</strong> your account, all generations, voice data, and cancel any active subscription. <strong className="text-red-400">This cannot be undone.</strong>
             </p>
             <div className="space-y-2">

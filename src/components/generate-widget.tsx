@@ -325,7 +325,7 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground/50">
+        <p className="text-[11px] text-muted-foreground">
           Tip: start with <span className="font-mono text-purple-400/70">/exact</span> to skip the AI rewrite — e.g. <span className="font-mono text-purple-400/70">/exact &lt;Your text here&gt;</span>
         </p>
         <button
@@ -653,14 +653,14 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
                       <p className="text-[11px] font-medium text-amber-400">Photo requirements</p>
                       <span className="text-[10px] font-semibold text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5">⏱ 15–60 min to process</span>
                     </div>
-                    <ul className="text-[11px] text-muted-foreground space-y-0.5 list-none">
+                    <ul className="text-[11px] text-foreground/65 space-y-0.5 list-none">
                       <li>✓ Single person only — solo portrait, headshot, or full-body</li>
                       <li>✓ Face clearly visible, well-lit, not obscured</li>
                       <li>✗ No group shots, pets, objects, or landscapes</li>
                       <li>✗ No heavy filters, masks, or heavy obstructions</li>
                     </ul>
                     <p className="text-[10px] text-muted-foreground/60 pt-0.5">
-                      HeyGen requires a detectable face to animate. Non-portrait images will fail during processing. Once created, your avatar is saved for instant reuse.
+                      Your AI twin requires a clearly detectable face to animate. Non-portrait images will fail during processing. Once created, your avatar is saved for instant reuse.
                     </p>
                   </div>
                   <AvatarUpload
