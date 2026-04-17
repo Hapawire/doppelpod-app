@@ -748,13 +748,15 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
                       <span className="text-[10px] font-semibold text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5">⏱ 15–60 min to process</span>
                     </div>
                     <ul className="text-[11px] text-foreground/65 space-y-0.5 list-none">
-                      <li>✓ Single person only — solo portrait, headshot, or full-body</li>
-                      <li>✓ Face clearly visible, well-lit, not obscured</li>
+                      <li>✓ Real photograph of a single person (portrait, headshot, or full-body)</li>
+                      <li>✓ Face clearly visible, well-lit, looking toward camera</li>
+                      <li>✓ PNG, JPEG, or WebP · max 10 MB</li>
+                      <li>✗ No illustrations, cartoons, AI-generated art, or avatars</li>
                       <li>✗ No group shots, pets, objects, or landscapes</li>
-                      <li>✗ No heavy filters, masks, or heavy obstructions</li>
+                      <li>✗ No heavy filters, masks, or obstructions</li>
                     </ul>
                     <p className="text-[10px] text-muted-foreground/60 pt-0.5">
-                      Your AI twin requires a clearly detectable face to animate. Non-portrait images will fail during processing. Once created, your avatar is saved for instant reuse.
+                      Must be a real photo with a detectable human face. Non-portrait or non-photo images will fail during processing. Once created, your avatar is saved for instant reuse.
                     </p>
                   </div>
                   <AvatarUpload
