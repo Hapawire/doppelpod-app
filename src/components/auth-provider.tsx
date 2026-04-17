@@ -94,9 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [supabase, fetchProfile]);
 
+  // While loading, default to "trial" to avoid flicker to "expired" for active users.
+  // Components that need to show tier-gated UI should also check `loading` before rendering.
   const effectiveTier: TierName = profile
     ? getEffectiveTier(profile)
-    : "expired";
+    : loading ? "trial" : "expired";
 
   const emailConfirmed = !!profile?.email_confirmed;
 

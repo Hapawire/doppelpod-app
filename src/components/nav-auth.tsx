@@ -46,7 +46,7 @@ export function NavAuth() {
       >
         Login / Signup
       </Button>
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} redirectOnLogin="/dashboard" />
     </>
   );
 }

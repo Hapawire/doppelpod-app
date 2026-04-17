@@ -10,12 +10,14 @@ interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultTab?: "login" | "signup";
+  redirectOnLogin?: string;
 }
 
 export function AuthModal({
   open,
   onOpenChange,
   defaultTab = "login",
+  redirectOnLogin,
 }: AuthModalProps) {
   const [tab, setTab] = useState<"login" | "signup" | "forgot">(defaultTab);
   const [email, setEmail] = useState("");
@@ -83,7 +85,7 @@ export function AuthModal({
     } else {
       onOpenChange(false);
       reset();
-      window.location.href = "/dashboard";
+      window.location.href = redirectOnLogin ?? "/dashboard";
     }
   }
 
