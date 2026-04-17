@@ -118,9 +118,12 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
 
   async function handleUseRecording() {
     if (!blobRef.current) return;
-    const mimeType = blobRef.current.type;
-    const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
-    const file = new File([blobRef.current], `voice-sample.${ext}`, { type: mimeType });
+    // Strip codec params (e.g. "audio/webm;codecs=opus" -> "audio/webm") so the
+    // server's MIME allowlist does an exact match without codec qualifiers.
+    const rawMime = blobRef.current.type;
+    const baseMime = rawMime.split(";")[0].trim();
+    const ext = baseMime.includes("mp4") ? "mp4" : baseMime.includes("ogg") ? "ogg" : "webm";
+    const file = new File([blobRef.current], `voice-sample.${ext}`, { type: baseMime });
     await onUpload(file);
   }
 

@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file type — check MIME type first (client-supplied, not trusted alone)
+    // Normalize MIME type — strip codec parameters (e.g. "audio/webm;codecs=opus" -> "audio/webm")
+    // Browser MediaRecorder and some OS APIs append codec params that break exact-match checks.
+    const baseMimeType = (file.type || "").split(";")[0].trim().toLowerCase();
+
+    // Validate file type — check base MIME type (client-supplied, not trusted alone)
     const allowedTypes = [
       "audio/mpeg",
       "audio/mp3",
@@ -43,10 +47,11 @@ export async function POST(req: NextRequest) {
       "audio/mp4",
       "audio/m4a",
       "audio/x-m4a",
+      "video/mp4",   // QuickTime .m4a sometimes reports as video/mp4
     ];
-    if (!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(baseMimeType)) {
       return NextResponse.json(
-        { error: "Invalid file type. Please upload an audio file (MP3, WAV, OGG, M4A)." },
+        { error: "Invalid file type. Please upload an audio file (MP3, WAV, OGG, M4A, WebM)." },
         { status: 400 }
       );
     }
@@ -66,11 +71,11 @@ export async function POST(req: NextRequest) {
     const isWebM =
       headerBytes[0] === 0x1a && headerBytes[1] === 0x45 &&
       headerBytes[2] === 0xdf && headerBytes[3] === 0xa3; // EBML/WebM
+    // MP4/M4A: ftyp box can be at any offset depending on box size.
+    // Check bytes 4-7 for "ftyp" marker (handles 16-, 20-, 24-, 28-, 32-byte leading boxes).
     const isMp4 =
-      (headerBytes[4] === 0x66 && headerBytes[5] === 0x74 &&
-       headerBytes[6] === 0x79 && headerBytes[7] === 0x70) || // ftyp box
-      (headerBytes[0] === 0x00 && headerBytes[1] === 0x00 &&
-       headerBytes[2] === 0x00 && headerBytes[3] === 0x20); // MP4 with leading box
+      headerBytes[4] === 0x66 && headerBytes[5] === 0x74 &&
+      headerBytes[6] === 0x79 && headerBytes[7] === 0x70; // "ftyp"
     if (!isMp3 && !isWav && !isOgg && !isWebM && !isMp4) {
       return NextResponse.json(
         { error: "Invalid file. Please upload a valid audio file (MP3, WAV, OGG, M4A, WebM)." },
