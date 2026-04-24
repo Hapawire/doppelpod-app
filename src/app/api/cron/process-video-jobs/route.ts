@@ -4,8 +4,9 @@ import { Resend } from "resend";
 import { buildVideoReadyEmail } from "@/lib/video-ready-email";
 import { incrementUsage } from "@/lib/api-gate";
 
-const AVATAR_TIMEOUT_MS = 90 * 60 * 1000; // 90 minutes
-const VIDEO_TIMEOUT_MS  = 10 * 60 * 1000; // 10 minutes
+const AVATAR_TIMEOUT_MS  = 90 * 60 * 1000; // 90 minutes for avatar training phase
+const VIDEO_TIMEOUT_MS   = 10 * 60 * 1000; // 10 minutes for video render phase
+const GLOBAL_TIMEOUT_MS  = 3 * 60 * 60 * 1000; // 3-hour hard cap — force-fail any job older than this
 const MAX_RETRIES = 3;
 
 export async function GET(req: NextRequest) {
@@ -92,6 +93,13 @@ async function processJob(
 
   const now = Date.now();
 
+  // Hard global timeout — catches jobs that have been stuck for any reason.
+  // Use created_at so retries don't reset the clock (updated_at changes on every retry).
+  const jobAge = now - new Date(job.created_at as string).getTime();
+  if (jobAge > GLOBAL_TIMEOUT_MS) {
+    return fail("Job exceeded maximum allowed time of 3 hours and was automatically cancelled.");
+  }
+
   switch (job.status as string) {
 
     case "pending": {
@@ -138,7 +146,9 @@ async function processJob(
     }
 
     case "awaiting_avatar": {
-      const elapsed = now - new Date(job.updated_at as string).getTime();
+      // Use created_at for timeout — updated_at resets on every retry call and would
+      // prevent the timeout from ever triggering on a persistently-failing job.
+      const elapsed = now - new Date(job.created_at as string).getTime();
       if (elapsed > AVATAR_TIMEOUT_MS) return fail("Photo avatar training timed out after 90 minutes.");
 
       const groupId = job.heygen_avatar_id as string | null;
@@ -264,6 +274,9 @@ async function processJob(
     }
 
     case "awaiting_video": {
+      // Use updated_at here — unlike awaiting_avatar, this phase never calls retry(),
+      // so updated_at is stable and represents when the job entered this phase.
+      // The global 3-hour cap on created_at handles truly stuck jobs regardless.
       const elapsed = now - new Date(job.updated_at as string).getTime();
       if (elapsed > VIDEO_TIMEOUT_MS) return fail("Video generation timed out after 10 minutes.");
 
