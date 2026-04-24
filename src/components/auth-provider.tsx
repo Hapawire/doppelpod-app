@@ -70,10 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchProfile]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // getUser() is the source of truth for initial load — we await profile
+    // fetch before clearing loading so components never see the (profile=null,
+    // loading=false) window that causes an "expired" flash.
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUser(user);
+      if (user) await fetchProfile();
       setLoading(false);
-      if (user) fetchProfile();
     });
 
     const {
@@ -81,13 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const newUser = session?.user ?? null;
       setUser(newUser);
-      setLoading(false);
       if (newUser) {
-        // Small delay to allow trigger to create profile on signup
-        setTimeout(fetchProfile, 500);
+        // Post-initial auth changes (sign-in, token refresh): fetch profile
+        // immediately, no delay. Profile trigger runs synchronously before
+        // Supabase fires this event, so the row exists by the time we query.
+        fetchProfile();
       } else {
+        // Sign-out: clear profile and unblock any loading state.
         setProfile(null);
         setUsage(null);
+        setLoading(false);
       }
     });
 
@@ -164,9 +170,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Raise loading flag immediately so components render nothing sensitive
+    // during the brief window between signOut() and the page redirect.
+    setLoading(true);
     await supabase.auth.signOut();
-    setProfile(null);
-    setUsage(null);
     window.location.href = "/";
   }
 
