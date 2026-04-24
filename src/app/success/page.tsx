@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 
 function SuccessContent() {
   const params = useSearchParams();
@@ -12,7 +13,8 @@ function SuccessContent() {
   const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -67,6 +69,8 @@ function SuccessContent() {
           </Link>
         </div>
       </motion.div>
+    </div>
+    <SiteFooter />
     </div>
   );
 }

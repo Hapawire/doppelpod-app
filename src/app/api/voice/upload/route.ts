@@ -41,27 +41,35 @@ export async function POST(req: NextRequest) {
       "audio/mpeg",
       "audio/mp3",
       "audio/wav",
+      "audio/wave",
       "audio/x-wav",
       "audio/ogg",
       "audio/webm",
       "audio/mp4",
       "audio/m4a",
       "audio/x-m4a",
-      "video/mp4",   // QuickTime .m4a sometimes reports as video/mp4
+      "audio/aac",       // Safari MediaRecorder may report this
+      "audio/x-aac",
+      "video/mp4",       // QuickTime .m4a sometimes reports as video/mp4
     ];
     if (!allowedTypes.includes(baseMimeType)) {
       return NextResponse.json(
-        { error: "Invalid file type. Please upload an audio file (MP3, WAV, OGG, M4A, WebM)." },
+        { error: "Invalid file type. Please upload an audio file (MP3, WAV, M4A, OGG, or WebM)." },
         { status: 400 }
       );
     }
 
-    // Magic-number validation — read first 12 bytes to verify actual file signature
+    // Magic-number validation — read first 36 bytes to verify actual file signature.
     // (file.type is client-supplied and can be spoofed)
-    const headerBytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    // We read 36 bytes because QuickTime .m4a and Safari MediaRecorder MP4 output
+    // may begin with a small "free" or "wide" box (8 bytes) before the "ftyp" box,
+    // so checking only bytes [4:7] is not reliable.
+    const headerBytes = new Uint8Array(await file.slice(0, 36).arrayBuffer());
     const isMp3 =
       (headerBytes[0] === 0xff && (headerBytes[1] & 0xe0) === 0xe0) || // MPEG sync
       (headerBytes[0] === 0x49 && headerBytes[1] === 0x44 && headerBytes[2] === 0x33); // ID3
+    const isAac =
+      (headerBytes[0] === 0xff && (headerBytes[1] & 0xf6) === 0xf0); // ADTS AAC sync
     const isWav =
       headerBytes[0] === 0x52 && headerBytes[1] === 0x49 &&
       headerBytes[2] === 0x46 && headerBytes[3] === 0x46; // RIFF
@@ -71,14 +79,24 @@ export async function POST(req: NextRequest) {
     const isWebM =
       headerBytes[0] === 0x1a && headerBytes[1] === 0x45 &&
       headerBytes[2] === 0xdf && headerBytes[3] === 0xa3; // EBML/WebM
-    // MP4/M4A: ftyp box can be at any offset depending on box size.
-    // Check bytes 4-7 for "ftyp" marker (handles 16-, 20-, 24-, 28-, 32-byte leading boxes).
-    const isMp4 =
-      headerBytes[4] === 0x66 && headerBytes[5] === 0x74 &&
-      headerBytes[6] === 0x79 && headerBytes[7] === 0x70; // "ftyp"
-    if (!isMp3 && !isWav && !isOgg && !isWebM && !isMp4) {
+    // MP4/M4A: scan first 36 bytes for "ftyp" (0x66 0x74 0x79 0x70).
+    // QuickTime .m4a and Safari MediaRecorder often prepend a "free" or "wide"
+    // box before "ftyp", so the marker may not be exactly at offset 4.
+    const ftyp = [0x66, 0x74, 0x79, 0x70];
+    const isMp4 = (() => {
+      for (let i = 0; i <= headerBytes.length - 4; i++) {
+        if (
+          headerBytes[i]     === ftyp[0] &&
+          headerBytes[i + 1] === ftyp[1] &&
+          headerBytes[i + 2] === ftyp[2] &&
+          headerBytes[i + 3] === ftyp[3]
+        ) return true;
+      }
+      return false;
+    })();
+    if (!isMp3 && !isAac && !isWav && !isOgg && !isWebM && !isMp4) {
       return NextResponse.json(
-        { error: "Invalid file. Please upload a valid audio file (MP3, WAV, OGG, M4A, WebM)." },
+        { error: "Invalid file. Please upload a valid audio file (MP3, WAV, M4A, OGG, or WebM)." },
         { status: 400 }
       );
     }

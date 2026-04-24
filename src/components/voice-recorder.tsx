@@ -30,14 +30,15 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
     };
   }, [audioUrl]);
 
-  function getMimeType(): string {
+  // Returns the best supported MIME type, or null to let the browser choose its default.
+  function getMimeType(): string | null {
     const types = [
       "audio/webm;codecs=opus",
       "audio/webm",
       "audio/mp4",
       "audio/ogg;codecs=opus",
     ];
-    return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "audio/mp4";
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? null;
   }
 
   async function startRecording() {
@@ -63,7 +64,9 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
       streamRef.current = stream;
 
       const mimeType = getMimeType();
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream); // let browser pick its own default
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -72,7 +75,9 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        // Use the recorder's actual MIME type (may differ from what we requested)
+        const actualMime = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: actualMime });
         blobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
@@ -120,9 +125,15 @@ export function VoiceRecorder({ onUpload, uploading }: VoiceRecorderProps) {
     if (!blobRef.current) return;
     // Strip codec params (e.g. "audio/webm;codecs=opus" -> "audio/webm") so the
     // server's MIME allowlist does an exact match without codec qualifiers.
-    const rawMime = blobRef.current.type;
-    const baseMime = rawMime.split(";")[0].trim();
-    const ext = baseMime.includes("mp4") ? "mp4" : baseMime.includes("ogg") ? "ogg" : "webm";
+    const rawMime = blobRef.current.type || "audio/webm";
+    const baseMime = rawMime.split(";")[0].trim().toLowerCase();
+    // Map MIME to file extension; fall back to webm for unknown types
+    const ext =
+      baseMime.includes("mp4") || baseMime.includes("m4a") || baseMime.includes("aac")
+        ? "mp4"
+        : baseMime.includes("ogg")
+        ? "ogg"
+        : "webm";
     const file = new File([blobRef.current], `voice-sample.${ext}`, { type: baseMime });
     await onUpload(file);
   }
