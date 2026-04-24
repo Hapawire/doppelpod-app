@@ -755,7 +755,7 @@ export function DashboardClient({
           {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
           <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
-              <CardTitle className="text-lg">Generate</CardTitle>
+              <CardTitle className="text-lg">Generate Video</CardTitle>
             </CardHeader>
             <CardContent>
               <GenerateWidget placeholder="Type or paste your text here..." />

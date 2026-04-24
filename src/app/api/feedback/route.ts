@@ -13,9 +13,21 @@ function escapeHtml(str: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Parse body — return 400 on malformed JSON rather than letting it bubble to 500
+  let type: string;
+  let message: string;
   try {
-    const { type, message } = await req.json();
+    const body = await req.json();
+    type = body?.type;
+    message = body?.message;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
 
+  try {
+    if (!type || typeof type !== "string" || !type.trim()) {
+      return NextResponse.json({ error: "Type is required." }, { status: 400 });
+    }
     if (!message?.trim()) {
       return NextResponse.json({ error: "Message is required." }, { status: 400 });
     }

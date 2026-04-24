@@ -13,7 +13,7 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-inline/eval required by Next.js
+      "script-src 'self' 'unsafe-inline'", // unsafe-inline required by Next.js; unsafe-eval removed
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
