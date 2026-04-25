@@ -70,21 +70,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchProfile]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // getUser() is the sole owner of initial loading state.
+    // loading stays true until the profile is in hand — prevents "expired" flash.
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUser(user);
+      if (user) await fetchProfile();
       setLoading(false);
-      if (user) fetchProfile();
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // INITIAL_SESSION is already handled by getUser() above — skip to avoid double work.
+      if (event === "INITIAL_SESSION") return;
+
       const newUser = session?.user ?? null;
       setUser(newUser);
-      setLoading(false);
+
       if (newUser) {
-        // Small delay to allow trigger to create profile on signup
-        setTimeout(fetchProfile, 500);
+        // Raise loading so effectiveTier shows "trial" (not "expired") while profile fetches.
+        setLoading(true);
+        await fetchProfile();
+        setLoading(false);
       } else {
         setProfile(null);
         setUsage(null);
