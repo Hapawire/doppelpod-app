@@ -12,6 +12,10 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#x27;");
 }
 
+export async function GET() {
+  return NextResponse.json({ error: "Method not allowed." }, { status: 405 });
+}
+
 export async function POST(req: NextRequest) {
   // Parse body — return 400 on malformed JSON rather than letting it bubble to 500
   let type: string;
