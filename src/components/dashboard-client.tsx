@@ -11,7 +11,7 @@ import { GenerateWidget } from "@/components/generate-widget";
 import { VoiceRecorder } from "@/components/voice-recorder";
 import { VoiceUploadZone } from "@/components/voice-upload-zone";
 import { SiteFooter } from "@/components/site-footer";
-import { TIER_LIMITS } from "@/lib/tiers";
+import { TIER_LIMITS, getEffectiveTier } from "@/lib/tiers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 
@@ -34,7 +34,7 @@ interface VideoJob {
 
 interface DashboardClientProps {
   user: { id: string; email: string };
-  profile: { tier: string; voice_id: string | null; heygen_avatar_id?: string | null; comms_email?: string | null };
+  profile: { tier: string; voice_id: string | null; heygen_avatar_id?: string | null; comms_email?: string | null; trial_end?: string | null; paid_tier?: string | null };
   initialGenerations: Generation[];
   initialVideoJobs: VideoJob[];
 }
@@ -76,8 +76,16 @@ export function DashboardClient({
   initialGenerations,
   initialVideoJobs,
 }: DashboardClientProps) {
-  const { signOut, effectiveTier, emailConfirmed, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
-  const limits = TIER_LIMITS[effectiveTier];
+  const { signOut, loading, effectiveTier, emailConfirmed, trialDaysLeft, usage, refreshProfile, updatePassword, deleteAccount } = useAuth();
+  // Use the server-rendered profile to compute the correct tier during the auth loading
+  // window. This prevents a flash of accessible content for expired users while the
+  // client-side profile fetch completes — the server already has the authoritative data.
+  const displayTier = loading ? getEffectiveTier({
+    tier: profile.tier,
+    paid_tier: profile.paid_tier ?? null,
+    trial_end: profile.trial_end ?? null,
+  }) : effectiveTier;
+  const limits = TIER_LIMITS[displayTier];
   const [generations] = useState<Generation[]>(initialGenerations);
   const [videoJobs, setVideoJobs] = useState<VideoJob[]>(initialVideoJobs);
   const videoJobsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -109,7 +117,11 @@ export function DashboardClient({
   const [checkoutTier, setCheckoutTier] = useState<"pro" | "elite">("pro");
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeBillingPeriod, setUpgradeBillingPeriod] = useState<"monthly" | "yearly">("monthly");
-  const [activePlan, setActivePlan] = useState(profile.tier);
+  const [activePlan, setActivePlan] = useState(() => getEffectiveTier({
+    tier: profile.tier,
+    paid_tier: profile.paid_tier ?? null,
+    trial_end: profile.trial_end ?? null,
+  }));
 
   const tierInfo = {
     pro: {
@@ -478,14 +490,14 @@ export function DashboardClient({
                 <span className="text-sm text-muted-foreground">Plan:</span>
                 <span
                   className={`rounded-full border px-3 py-1 text-xs font-medium uppercase ${
-                    tierColors[effectiveTier] || tierColors.expired
+                    tierColors[displayTier] || tierColors.expired
                   }`}
                 >
-                  {effectiveTier === "trial"
+                  {displayTier === "trial"
                     ? `Trial (${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} left)`
-                    : effectiveTier}
+                    : displayTier}
                 </span>
-                {(effectiveTier === "expired" || effectiveTier === "trial") && (
+                {(displayTier === "expired" || displayTier === "trial") && (
                   <Button
                     size="sm"
                     className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:from-purple-700 hover:to-pink-700"
@@ -494,7 +506,7 @@ export function DashboardClient({
                     Upgrade Now
                   </Button>
                 )}
-                {effectiveTier === "pro" && (
+                {displayTier === "pro" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -669,10 +681,10 @@ export function DashboardClient({
                     variant="outline"
                     className="w-full justify-start border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30"
                     onClick={() => setExportConfirmOpen(true)}
-                    disabled={exportLoading || effectiveTier === "expired" || !emailConfirmed}
-                    title={!emailConfirmed ? "Confirm your email to export data" : effectiveTier === "expired" ? "Upgrade to export your data" : undefined}
+                    disabled={exportLoading || displayTier === "expired" || !emailConfirmed}
+                    title={!emailConfirmed ? "Confirm your email to export data" : displayTier === "expired" ? "Upgrade to export your data" : undefined}
                   >
-                    {exportLoading ? "Exporting..." : !emailConfirmed ? "Export Data (Confirm Email)" : effectiveTier === "expired" ? "Export Data (Upgrade Required)" : "Export Data"}
+                    {exportLoading ? "Exporting..." : !emailConfirmed ? "Export Data (Confirm Email)" : displayTier === "expired" ? "Export Data (Upgrade Required)" : "Export Data"}
                   </Button>
                   <Button
                     size="sm"
@@ -752,8 +764,8 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.15 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
-          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
+          {displayTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
+          <Card className={`border-border/50 bg-card/50 ${displayTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Generate Post - Text or Video</CardTitle>
             </CardHeader>
@@ -770,8 +782,8 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.2 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
-          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
+          {displayTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
+          <Card className={`border-border/50 bg-card/50 ${displayTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Voice Clone</CardTitle>
             </CardHeader>
@@ -911,8 +923,8 @@ export function DashboardClient({
           transition={{ duration: 0.4, delay: 0.3 }}
           className="relative"
         >
-          {effectiveTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
-          <Card className={`border-border/50 bg-card/50 ${effectiveTier === "expired" ? "pointer-events-none" : ""}`}>
+          {displayTier === "expired" && <ExpiredOverlay onUpgrade={() => setUpgradeModalOpen(true)} />}
+          <Card className={`border-border/50 bg-card/50 ${displayTier === "expired" ? "pointer-events-none" : ""}`}>
             <CardHeader>
               <CardTitle className="text-lg">Past Generations</CardTitle>
             </CardHeader>

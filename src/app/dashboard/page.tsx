@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       user={{ id: user.id, email: user.email || "" }}
-      profile={profile || { tier: "expired", voice_id: null }}
+      profile={profile || { tier: "expired", voice_id: null, trial_end: null, paid_tier: null }}
       initialGenerations={generations || []}
       initialVideoJobs={videoJobs || []}
     />

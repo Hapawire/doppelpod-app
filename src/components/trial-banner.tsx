@@ -4,9 +4,11 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 
 export function TrialBanner() {
-  const { user, effectiveTier, trialDaysLeft, profile } = useAuth();
+  const { loading, user, effectiveTier, trialDaysLeft } = useAuth();
 
-  if (!user) return null;
+  // Don't render during auth loading — avoids popping between states while
+  // the client-side profile fetch completes.
+  if (loading || !user) return null;
 
   // Active trial
   if (effectiveTier === "trial" && trialDaysLeft > 0) {
