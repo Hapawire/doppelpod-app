@@ -13,7 +13,6 @@ const ACCEPTED_TYPES = [
   "audio/mpeg",
   "audio/mp3",
   "audio/wav",
-  "audio/wave",
   "audio/x-wav",
   "audio/mp4",
   "audio/m4a",
@@ -21,6 +20,8 @@ const ACCEPTED_TYPES = [
   "video/mp4",     // QuickTime .m4a reports as video/mp4
   "audio/ogg",
   "audio/webm",
+  "audio/aac",     // Safari MediaRecorder
+  "audio/x-aac",
 ];
 const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 

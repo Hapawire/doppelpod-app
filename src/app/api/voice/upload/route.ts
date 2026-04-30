@@ -36,12 +36,19 @@ export async function POST(req: NextRequest) {
     // Browser MediaRecorder and some OS APIs append codec params that break exact-match checks.
     const baseMimeType = (file.type || "").split(";")[0].trim().toLowerCase();
 
+    console.log("[voice-upload] File received:", {
+      userId: user.id,
+      fileName: file.name,
+      rawMimeType: file.type,
+      baseMimeType,
+      fileSizeBytes: file.size,
+    });
+
     // Validate file type — check base MIME type (client-supplied, not trusted alone)
     const allowedTypes = [
       "audio/mpeg",
       "audio/mp3",
       "audio/wav",
-      "audio/wave",
       "audio/x-wav",
       "audio/ogg",
       "audio/webm",
@@ -53,6 +60,11 @@ export async function POST(req: NextRequest) {
       "video/mp4",       // QuickTime .m4a sometimes reports as video/mp4
     ];
     if (!allowedTypes.includes(baseMimeType)) {
+      console.warn("[voice-upload] MIME type rejected:", {
+        userId: user.id,
+        baseMimeType,
+        fileName: file.name,
+      });
       return NextResponse.json(
         { error: "Invalid file type. Please upload an audio file (MP3, WAV, M4A, OGG, or WebM)." },
         { status: 400 }
@@ -95,6 +107,12 @@ export async function POST(req: NextRequest) {
       return false;
     })();
     if (!isMp3 && !isAac && !isWav && !isOgg && !isWebM && !isMp4) {
+      console.warn("[voice-upload] Magic number check failed:", {
+        userId: user.id,
+        baseMimeType,
+        fileName: file.name,
+        headerHex: Array.from(headerBytes.slice(0, 8)).map(b => b.toString(16).padStart(2, "0")).join(" "),
+      });
       return NextResponse.json(
         { error: "Invalid file. Please upload a valid audio file (MP3, WAV, M4A, OGG, or WebM)." },
         { status: 400 }
@@ -110,15 +128,36 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split(".").pop() || "mp3";
-    const filePath = `voice-samples/${user.id}/sample.${ext}`;
+    // Path is relative to the bucket root — do NOT include bucket name here.
+    // Storage client already targets the "voice-samples" bucket via .from("voice-samples").
+    // Including the bucket name in the path breaks RLS (foldername[1] returns "voice-samples"
+    // instead of the user UUID) and double-nests the file under a spurious folder.
+    const filePath = `${user.id}/sample.${ext}`;
 
-    // Upload to Supabase Storage
+    console.log("[voice-upload] Uploading to storage:", {
+      userId: user.id,
+      filePath,
+      contentType: baseMimeType || "audio/mp4",
+    });
+
+    // Upload to Supabase Storage.
+    // Pass contentType explicitly — if file.type is empty (common on macOS Safari for .m4a),
+    // Supabase would otherwise infer application/octet-stream which the bucket rejects.
     const { error: uploadError } = await supabase.storage
       .from("voice-samples")
-      .upload(filePath, file, { upsert: true });
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: baseMimeType || "audio/mp4",
+      });
 
     if (uploadError) {
-      console.error("[voice-upload] Storage error:", uploadError.message);
+      console.error("[voice-upload] Storage upload failed:", {
+        userId: user.id,
+        filePath,
+        contentType: baseMimeType || "audio/mp4",
+        fileSizeBytes: file.size,
+        error: uploadError.message,
+      });
       return NextResponse.json(
         { error: "Failed to upload audio file." },
         { status: 500 }
@@ -134,16 +173,21 @@ export async function POST(req: NextRequest) {
       .eq("id", user.id);
 
     if (updateError) {
-      console.error("[voice-upload] Profile update error:", updateError.message);
+      console.error("[voice-upload] Profile update failed:", {
+        userId: user.id,
+        filePath,
+        error: updateError.message,
+      });
       return NextResponse.json(
         { error: "Failed to update profile." },
         { status: 500 }
       );
     }
 
+    console.log("[voice-upload] Success:", { userId: user.id, filePath });
     return NextResponse.json({ voiceId: filePath });
   } catch (err) {
-    console.error("[voice-upload] Error:", err);
+    console.error("[voice-upload] Unexpected error:", err);
     return NextResponse.json(
       { error: "Failed to upload voice sample." },
       { status: 500 }
