@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { CoworkModal } from "@/components/cowork-modal";
 import { CheckoutModal } from "@/components/checkout-modal";
 import { GenerateWidget } from "@/components/generate-widget";
+import { AuroraBackground } from "@/components/aurora-background";
+import { WaveformCanvas } from "@/components/waveform-canvas";
 import { NavAuth } from "@/components/nav-auth";
 import { FeatureCard } from "@/components/feature-card";
 import { AuthModal } from "@/components/auth-modal";
@@ -186,6 +188,7 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [checkoutTier, setCheckoutTier] = useState<{ tier: string; price: string; features: string[]; billingPeriod: "monthly" | "yearly" }>({ tier: "", price: "", features: [], billingPeriod: "monthly" });
   const [activePlan, setActivePlan] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
   const pendingCheckout = useRef<{ tier: string; price: string; features: string[]; billingPeriod: "monthly" | "yearly" } | null>(null);
 
@@ -221,7 +224,7 @@ export default function Home() {
 
       {/* Hero */}
       <section className="relative flex min-h-screen flex-col items-center justify-center px-4 pt-14 text-center">
-        <div className="absolute inset-0 bg-gradient-to-b from-purple-950/20 via-background to-background" />
+        <AuroraBackground />
         <motion.div
           className="relative z-10 max-w-4xl space-y-6"
           initial="hidden"
@@ -471,8 +474,9 @@ export default function Home() {
       </section>
 
       {/* Interactive Demo */}
-      <section className="px-4 py-16 sm:py-24 bg-muted/20" id="demo">
-        <div className="mx-auto max-w-2xl">
+      <section className="relative px-4 py-16 sm:py-24 bg-muted/20 overflow-hidden" id="demo">
+        <WaveformCanvas active={isGenerating} />
+        <div className="relative z-10 mx-auto max-w-2xl">
           <motion.div
             className="mb-8 text-center sm:mb-12"
             initial="hidden"
@@ -491,7 +495,7 @@ export default function Home() {
           <AuthGate>
           <Card className="border-border/50 bg-card/50 backdrop-blur transition-all hover:shadow-lg hover:shadow-purple-500/10">
             <CardContent className="p-4 sm:p-6">
-              <GenerateWidget onCoworkOpen={() => setCoworkOpen(true)} placeholder="Type or paste your text here..." />
+              <GenerateWidget onCoworkOpen={() => setCoworkOpen(true)} onLoadingChange={setIsGenerating} placeholder="Type or paste your text here..." />
             </CardContent>
           </Card>
           </AuthGate>

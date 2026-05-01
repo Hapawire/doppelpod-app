@@ -13,10 +13,11 @@ import { HelpModal } from "@/components/help-modal";
 
 interface GenerateWidgetProps {
   onCoworkOpen?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
   placeholder?: string;
 }
 
-export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProps) {
+export function GenerateWidget({ onCoworkOpen, onLoadingChange, placeholder }: GenerateWidgetProps) {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [aiOutput, setAiOutput] = useState(""); // stores AI-generated text so bypass is reversible
@@ -148,6 +149,7 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
 
   async function runAIEnhancement(rawText: string) {
     setLoading(true);
+    onLoadingChange?.(true);
     setBypassMode(false);
     cleanupAudio();
     setOutput("");
@@ -182,6 +184,7 @@ export function GenerateWidget({ onCoworkOpen, placeholder }: GenerateWidgetProp
       setOutput(`Error: ${msg}`);
     } finally {
       setLoading(false);
+      onLoadingChange?.(false);
     }
   }
 
