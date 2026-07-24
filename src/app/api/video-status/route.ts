@@ -39,9 +39,9 @@ export async function GET(req: NextRequest) {
     }
 
     const res = await fetch(
-      `https://api.heygen.com/v1/video_status.get?video_id=${videoId}`,
+      `https://api.heygen.com/v3/videos/${videoId}`,
       {
-        headers: { "X-Api-Key": apiKey },
+        headers: { "x-api-key": apiKey },
       }
     );
 
@@ -55,10 +55,11 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json();
-    const status = data.data?.status; // "processing" | "completed" | "failed"
+    const status = data.data?.status; // "pending" | "processing" | "completed" | "failed"
     const videoUrl = data.data?.video_url;
     const thumbnailUrl = data.data?.thumbnail_url;
-    const errorDetail = data.data?.error;
+    // V3 uses failure_message/failure_code instead of a generic "error" field.
+    const errorDetail = data.data?.failure_message || data.data?.failure_code;
 
     if (status === "failed") {
       console.error("[video-status] Video failed:", JSON.stringify(data.data));

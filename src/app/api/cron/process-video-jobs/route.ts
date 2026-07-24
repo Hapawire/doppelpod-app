@@ -110,35 +110,38 @@ async function processJob(
     }
 
     case "creating_avatar": {
-      console.log(`[process-video-jobs] Job ${job.id}: creating avatar group`);
+      console.log(`[process-video-jobs] Job ${job.id}: creating v3 photo avatar`);
       try {
-        // Step 1: Create avatar group from uploaded image
-        const createRes = await fetch("https://api.heygen.com/v2/photo_avatar/avatar_group/create", {
+        // V3 folds group-create + train into one call — POST /v3/avatars with
+        // type:"photo" starts training asynchronously; no separate train call needed.
+        const createRes = await fetch("https://api.heygen.com/v3/avatars", {
           method: "POST",
-          headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
+          headers: { "x-api-key": heygenKey, "Content-Type": "application/json" },
           body: JSON.stringify({
+            type: "photo",
             name: `avatar_${(job.id as string).slice(0, 8)}`,
-            image_key: job.heygen_image_key,
+            file: { type: "asset_id", asset_id: job.heygen_image_key },
           }),
         });
 
         if (!createRes.ok) {
           const body = await createRes.text().catch(() => "");
-          console.error(`[process-video-jobs] Avatar group create failed ${createRes.status}:`, body);
+          console.error(`[process-video-jobs] v3/avatars create failed ${createRes.status}:`, body);
           const userMsg = /face/i.test(body)
             ? "No face detected in your photo. Please upload a clear solo portrait with a visible face."
-            : `HeyGen avatar_group/create: ${createRes.status} ${body.slice(0, 200)}`;
+            : `HeyGen avatar create: ${createRes.status} ${body.slice(0, 200)}`;
           // 4xx = bad input, fail immediately. 5xx = transient, retry.
           return createRes.status < 500 ? fail(userMsg) : retry(userMsg);
         }
 
         const createData = await createRes.json();
-        const groupId = createData?.data?.group_id ?? createData?.data?.id;
-        if (!groupId) return fail(`No group_id in avatar group create response: ${JSON.stringify(createData)}`);
+        // The look-level id (lk_...) — this is what video generation needs as avatar_id,
+        // not the group id. Reusing heygen_avatar_id column to store it.
+        const lookId = createData?.data?.avatar_item?.id;
+        if (!lookId) return fail(`No avatar_item.id in v3/avatars response: ${JSON.stringify(createData)}`);
 
-        // Store group_id immediately — train is called later once group is ready
-        await update({ status: "awaiting_avatar", heygen_avatar_id: groupId, heygen_generation_id: null });
-        console.log(`[process-video-jobs] Job ${job.id}: group created, group_id=${groupId}, waiting for group to be ready before training`);
+        await update({ status: "awaiting_avatar", heygen_avatar_id: lookId });
+        console.log(`[process-video-jobs] Job ${job.id}: avatar created, look_id=${lookId}, training in progress`);
         return "advanced";
       } catch (err) {
         return retry(`Avatar create network error: ${err}`);
@@ -151,81 +154,46 @@ async function processJob(
       const elapsed = now - new Date(job.created_at as string).getTime();
       if (elapsed > AVATAR_TIMEOUT_MS) return fail("Photo avatar training timed out after 90 minutes.");
 
-      const groupId = job.heygen_avatar_id as string | null;
-      if (!groupId) {
-        console.log(`[process-video-jobs] Job ${job.id}: awaiting_avatar with no group_id — restarting creating_avatar`);
-        await update({ status: "creating_avatar", retry_count: 0, heygen_generation_id: null });
+      const lookId = job.heygen_avatar_id as string | null;
+      if (!lookId) {
+        console.log(`[process-video-jobs] Job ${job.id}: awaiting_avatar with no look_id — restarting creating_avatar`);
+        await update({ status: "creating_avatar", retry_count: 0 });
         return "advanced";
       }
-      const trainCalled = !!(job.heygen_generation_id as string | null);
-      console.log(`[process-video-jobs] Job ${job.id}: polling group ${groupId}, trainCalled=${trainCalled}`);
+      console.log(`[process-video-jobs] Job ${job.id}: polling look ${lookId}`);
 
       try {
+        // V3 has a single training phase — poll the look itself, no separate
+        // "group ready, now call train" step like V2 required.
         const res = await fetch(
-          `https://api.heygen.com/v2/photo_avatar/train/status/${groupId}`,
-          { headers: { "X-Api-Key": heygenKey } }
+          `https://api.heygen.com/v3/avatars/looks/${lookId}`,
+          { headers: { "x-api-key": heygenKey } }
         );
 
         if (!res.ok) {
           const body = await res.text().catch(() => "");
-          console.warn(`[process-video-jobs] Train status poll failed ${res.status}:`, body);
+          console.warn(`[process-video-jobs] Look status poll failed ${res.status}:`, body);
           return "waiting";
         }
 
         const data = await res.json();
         const status = data?.data?.status as string;
-        // Extract error message from whichever field HeyGen uses
-        const heygenErr = data?.data?.error_msg || data?.data?.message || data?.data?.error || "unknown";
-        console.log(`[process-video-jobs] Job ${job.id}: train/status=${status}, trainCalled=${trainCalled}`);
+        const heygenErr = data?.data?.error?.message || data?.data?.error?.code || "unknown";
+        console.log(`[process-video-jobs] Job ${job.id}: look status=${status}`);
 
-        if (!trainCalled) {
-          // Phase 1: "empty" = group ready, call train now. "pending" = still processing, wait.
-          // "failed" here means group creation itself failed (e.g. no face detected in photo).
-          if (status === "failed" || status === "error") {
-            const userMsg = /face/i.test(heygenErr)
-              ? "No face detected in your photo. Please upload a clear solo portrait with a visible face."
-              : `Avatar setup failed: ${heygenErr}`;
-            return fail(userMsg);
-          }
-
-          if (status === "empty" || status === "ready") {
-            const trainRes = await fetch("https://api.heygen.com/v2/photo_avatar/train", {
-              method: "POST",
-              headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
-              body: JSON.stringify({ group_id: groupId }),
-            });
-            const trainBody = await trainRes.text();
-            console.log(`[process-video-jobs] Job ${job.id}: train response ${trainRes.status}:`, trainBody);
-
-            if (!trainRes.ok) {
-              // Check if the train rejection itself is a face-detection error
-              const trainErrMsg = trainBody.slice(0, 400);
-              const userMsg = /face/i.test(trainErrMsg)
-                ? "No face detected in your photo. Please upload a clear solo portrait with a visible face."
-                : `HeyGen train: ${trainRes.status} ${trainErrMsg}`;
-              // Hard fail on 4xx (bad image), retry on 5xx (transient)
-              return trainRes.status < 500 ? fail(userMsg) : retry(userMsg);
-            }
-
-            const flowId = JSON.parse(trainBody)?.data?.data?.flow_id ?? "started";
-            await update({ heygen_generation_id: flowId });
-            return "waiting";
-          }
-          // Still pending — group not ready yet
-          return "waiting";
-        } else {
-          // Phase 2: train was called, waiting for training to complete
-          if (status === "ready") {
-            await update({ status: "generating_video" });
-            return "advanced";
-          } else if (status === "failed" || status === "error") {
-            const userMsg = /face/i.test(heygenErr)
-              ? "No face detected in your photo. Please upload a clear solo portrait with a visible face."
-              : `Photo avatar training failed: ${heygenErr}`;
-            return fail(userMsg);
-          }
-          return "waiting";
+        if (status === "completed") {
+          await update({ status: "generating_video" });
+          return "advanced";
+        } else if (status === "failed") {
+          const userMsg = /face/i.test(heygenErr)
+            ? "No face detected in your photo. Please upload a clear solo portrait with a visible face."
+            : `Photo avatar training failed: ${heygenErr}`;
+          return fail(userMsg);
         }
+        // "processing" (normal) or "pending_consent" (shouldn't occur for photo
+        // avatars — consent only applies to digital-twin/video-based avatars,
+        // but treat defensively as still-waiting rather than failing).
+        return "waiting";
       } catch (err) {
         console.warn(`[process-video-jobs] Training poll error:`, err);
         return "waiting";
@@ -233,32 +201,48 @@ async function processJob(
     }
 
     case "generating_video": {
-      console.log(`[process-video-jobs] Job ${job.id}: generating video`);
+      console.log(`[process-video-jobs] Job ${job.id}: generating video (v3)`);
 
-      const character = job.has_photo && job.heygen_avatar_id
-        ? { type: "talking_photo", talking_photo_id: job.heygen_avatar_id }
-        : { type: "avatar", avatar_id: "Daisy-inskirt-20220818", avatar_style: "normal" };
+      // V3 uses one flat "avatar" type for both a trained photo-avatar look and a
+      // preset public avatar — no more talking_photo vs avatar distinction.
+      const avatarId = job.has_photo && job.heygen_avatar_id
+        ? (job.heygen_avatar_id as string)
+        : "Daisy-inskirt-20220818";
 
-      const voice = job.audio_url
-        ? { type: "audio", audio_url: job.audio_url }
-        : { type: "text", input_text: (job.script as string).slice(0, 1500), voice_id: "2d5b0e6cf36f460aa7fc47e3eee4ba54" };
+      // A saved avatar reused directly (has_photo + heygen_avatar_id but no
+      // heygen_image_key from this run) holds a pre-migration V2 group id, which
+      // v3/videos will reject as an unknown avatar_id. Detect that case so we can
+      // give a real fix instead of retrying an ID that can never succeed.
+      const isSavedAvatarReuse = !!(job.has_photo && job.heygen_avatar_id && !job.heygen_image_key);
 
-      const payload = {
-        video_inputs: [{ character, voice }],
-        dimension: { width: 720, height: 1280 },
+      const payload: Record<string, unknown> = {
+        type: "avatar",
+        avatar_id: avatarId,
+        resolution: "720p",
         aspect_ratio: "9:16",
       };
+      if (job.audio_url) {
+        payload.audio_url = job.audio_url;
+      } else {
+        payload.script = (job.script as string).slice(0, 1500);
+        payload.voice_id = "2d5b0e6cf36f460aa7fc47e3eee4ba54";
+      }
 
       try {
-        const res = await fetch("https://api.heygen.com/v2/video/generate", {
+        const res = await fetch("https://api.heygen.com/v3/videos", {
           method: "POST",
-          headers: { "X-Api-Key": heygenKey, "Content-Type": "application/json" },
+          headers: { "x-api-key": heygenKey, "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
 
         if (!res.ok) {
           const body = await res.text().catch(() => "");
-          console.error(`[process-video-jobs] Video generate failed ${res.status}:`, body);
+          console.error(`[process-video-jobs] v3/videos generate failed ${res.status}:`, body);
+
+          if (isSavedAvatarReuse && res.status >= 400 && res.status < 500) {
+            return fail("Your saved avatar needs to be recreated after a HeyGen platform update. Please upload your photo again to keep using it.");
+          }
+
           return retry(`HeyGen video generate: ${res.status} ${body.slice(0, 200)}`);
         }
 
@@ -285,8 +269,8 @@ async function processJob(
 
       try {
         const res = await fetch(
-          `https://api.heygen.com/v1/video_status.get?video_id=${videoId}`,
-          { headers: { "X-Api-Key": heygenKey } }
+          `https://api.heygen.com/v3/videos/${videoId}`,
+          { headers: { "x-api-key": heygenKey } }
         );
 
         if (!res.ok) {
@@ -345,7 +329,8 @@ async function processJob(
 
           return "advanced";
         } else if (status === "failed") {
-          return fail(`HeyGen video processing failed`);
+          const failureMsg = data?.data?.failure_message || data?.data?.failure_code || "unknown";
+          return fail(`HeyGen video processing failed: ${failureMsg}`);
         }
 
         return "waiting";

@@ -65,13 +65,18 @@ export async function POST(req: NextRequest) {
         console.log(`[generate-video] TTS via ${provider.name}, voice: ${voiceId}`);
         const audioBuffer = await provider.generateSpeech({ text: script.slice(0, 1000), voiceId });
 
-        const uploadRes = await fetch("https://upload.heygen.com/v1/asset", {
+        // V3 asset upload is multipart/form-data to api.heygen.com (was a raw-binary
+        // POST to upload.heygen.com/v1/asset in V2) — response is also flat now,
+        // no more { data: { url } } wrapper.
+        const audioForm = new FormData();
+        audioForm.append("file", new Blob([audioBuffer], { type: "audio/mpeg" }), "speech.mp3");
+        const uploadRes = await fetch("https://api.heygen.com/v3/assets", {
           method: "POST",
-          headers: { "X-Api-Key": apiKey, "Content-Type": "audio/mpeg" },
-          body: new Uint8Array(audioBuffer),
+          headers: { "x-api-key": apiKey },
+          body: audioForm,
         });
         if (uploadRes.ok) {
-          return (await uploadRes.json()).data?.url;
+          return (await uploadRes.json()).url;
         }
         console.warn("[generate-video] HeyGen audio upload failed:", uploadRes.status);
       } catch (e) {
@@ -115,17 +120,23 @@ export async function POST(req: NextRequest) {
     if (avatarPhoto && avatarPhoto.size > 0) {
       console.log("[generate-video] Uploading photo asset...");
       const photoBuffer = Buffer.from(await avatarPhoto.arrayBuffer());
-      const assetRes = await fetch("https://upload.heygen.com/v1/asset", {
+      const photoForm = new FormData();
+      photoForm.append("file", new Blob([photoBuffer], { type: avatarPhoto.type }), avatarPhoto.name || "photo.jpg");
+      const assetRes = await fetch("https://api.heygen.com/v3/assets", {
         method: "POST",
-        headers: { "X-Api-Key": apiKey, "Content-Type": avatarPhoto.type },
-        body: photoBuffer,
+        headers: { "x-api-key": apiKey },
+        body: photoForm,
       });
 
       if (assetRes.ok) {
+        // V3 response is flat: { asset_id, url, mime_type, size_bytes } — no data wrapper.
+        // We pass this asset_id straight into v3/avatars { file: { type: "asset_id", asset_id } }
+        // when creating the photo avatar, so the DB column keeps its old name but now
+        // holds a v3 asset_id rather than a v2 image_key.
         const assetData = await assetRes.json();
-        imageKey = assetData.data?.image_key ?? assetData.data?.id;
+        imageKey = assetData.asset_id;
         if (imageKey) hasPhoto = true;
-        console.log("[generate-video] Photo uploaded, image_key:", imageKey);
+        console.log("[generate-video] Photo uploaded, asset_id:", imageKey);
       } else {
         const errBody = await assetRes.text().catch(() => "");
         console.warn("[generate-video] Photo upload failed:", assetRes.status, errBody);
