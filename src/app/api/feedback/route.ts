@@ -20,10 +20,12 @@ export async function POST(req: NextRequest) {
   // Parse body — return 400 on malformed JSON rather than letting it bubble to 500
   let type: string;
   let message: string;
+  let submittedEmail: string | undefined;
   try {
     const body = await req.json();
     type = body?.type;
     message = body?.message;
+    submittedEmail = typeof body?.email === "string" ? body.email.trim() : undefined;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
       const supabase = await createServerSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
+        // Authenticated identity always wins — never let a submitted email
+        // override it, so a signed-in request can't spoof a different "from".
         userEmail = user.email;
         rateLimitKey = `feedback:user:${user.id}`;
         const { data: profile } = await supabase
@@ -55,6 +59,9 @@ export async function POST(req: NextRequest) {
           .eq("id", user.id)
           .single();
         if (profile?.tier) userTier = profile.tier;
+      } else if (submittedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail) && submittedEmail.length <= 254) {
+        // Anonymous submitter voluntarily left a contact email.
+        userEmail = submittedEmail;
       }
     } catch {
       // Continue without user info

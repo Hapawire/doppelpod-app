@@ -7,17 +7,20 @@ import { Button } from "@/components/ui/button";
 interface FeedbackModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userEmail?: string | null;
 }
 
-export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
+export function FeedbackModal({ open, onOpenChange, userEmail }: FeedbackModalProps) {
   const [type, setType] = useState<"bug" | "feature" | "other">("feature");
   const [text, setText] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   function reset() {
     setText("");
     setType("feature");
+    setContactEmail("");
     setStatus("idle");
     setErrorMsg("");
   }
@@ -31,7 +34,11 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, message: text.trim() }),
+        body: JSON.stringify({
+          type,
+          message: text.trim(),
+          ...(!userEmail && contactEmail.trim() ? { email: contactEmail.trim() } : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -121,6 +128,18 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
               rows={4}
               className="w-full rounded-lg border border-border/50 bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none placeholder:text-muted-foreground/60"
             />
+
+            {/* Optional contact email — only shown when not signed in, since
+                signed-in submissions are already attributed via the account. */}
+            {!userEmail && (
+              <input
+                type="email"
+                placeholder="Email (optional, if you'd like a reply)"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 placeholder:text-muted-foreground/60"
+              />
+            )}
 
             {status === "error" && errorMsg && (
               <p className="text-xs text-red-400 rounded-md bg-red-500/10 px-3 py-2">

@@ -502,10 +502,8 @@ export default function Home() {
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => user ? setFeedbackOpen(true) : undefined}
-              disabled={!user}
-              title={!user ? "Sign in to leave feedback" : undefined}
-              className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-5 py-2.5 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-500/10 disabled:hover:text-purple-300"
+              onClick={() => setFeedbackOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-5 py-2.5 text-sm font-medium text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-all"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -545,7 +543,7 @@ export default function Home() {
       {/* Signup Modal (from Start Trial CTAs) */}
       <AuthModal open={signupOpen} onOpenChange={setSignupOpen} defaultTab="signup" />
 
-      <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} userEmail={user?.email ?? null} />
     </div>
   );
 }
