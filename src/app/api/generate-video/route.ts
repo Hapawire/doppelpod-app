@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
           body: audioForm,
         });
         if (uploadRes.ok) {
-          return (await uploadRes.json()).url;
+          return (await uploadRes.json()).data?.url;
         }
         console.warn("[generate-video] HeyGen audio upload failed:", uploadRes.status);
       } catch (e) {
@@ -129,12 +129,12 @@ export async function POST(req: NextRequest) {
       });
 
       if (assetRes.ok) {
-        // V3 response is flat: { asset_id, url, mime_type, size_bytes } — no data wrapper.
+        // V3 response is wrapped: { data: { asset_id, url, mime_type, size_bytes } }.
         // We pass this asset_id straight into v3/avatars { file: { type: "asset_id", asset_id } }
         // when creating the photo avatar, so the DB column keeps its old name but now
         // holds a v3 asset_id rather than a v2 image_key.
         const assetData = await assetRes.json();
-        imageKey = assetData.asset_id;
+        imageKey = assetData.data?.asset_id;
         if (imageKey) hasPhoto = true;
         console.log("[generate-video] Photo uploaded, asset_id:", imageKey);
       } else {

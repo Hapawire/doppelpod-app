@@ -205,9 +205,11 @@ async function processJob(
 
       // V3 uses one flat "avatar" type for both a trained photo-avatar look and a
       // preset public avatar — no more talking_photo vs avatar distinction.
+      // V3 public-avatar look ID (Marco). The old V2 preset "Daisy-inskirt-20220818"
+      // no longer exists in V3 and returns avatar_not_found.
       const avatarId = job.has_photo && job.heygen_avatar_id
         ? (job.heygen_avatar_id as string)
-        : "Daisy-inskirt-20220818";
+        : "fbee11f583244c1095136b049cd1bbd2";
 
       // A saved avatar reused directly (has_photo + heygen_avatar_id but no
       // heygen_image_key from this run) holds a pre-migration V2 group id, which
