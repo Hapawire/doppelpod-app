@@ -88,6 +88,17 @@ export function DashboardClient({
   const limits = TIER_LIMITS[displayTier];
   const [generations] = useState<Generation[]>(initialGenerations);
   const [videoJobs, setVideoJobs] = useState<VideoJob[]>(initialVideoJobs);
+  const [copiedGenId, setCopiedGenId] = useState<string | null>(null);
+
+  async function copyGeneration(gen: Generation) {
+    try {
+      await navigator.clipboard.writeText(gen.output_text);
+      setCopiedGenId(gen.id);
+      setTimeout(() => setCopiedGenId((id) => (id === gen.id ? null : id)), 1800);
+    } catch {
+      // Clipboard can be unavailable (e.g. insecure context) — fail quietly.
+    }
+  }
   const videoJobsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll for video job updates while any jobs are active
@@ -1053,7 +1064,17 @@ export function DashboardClient({
                   {generations.map((gen) => (
                     <div
                       key={gen.id}
-                      className="rounded-lg border border-border/50 p-4 transition-colors hover:bg-muted/30"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => copyGeneration(gen)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          copyGeneration(gen);
+                        }
+                      }}
+                      title="Click to copy the AI Twin output"
+                      className="cursor-pointer rounded-lg border border-border/50 p-4 transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1 space-y-2">
@@ -1073,6 +1094,9 @@ export function DashboardClient({
                         <span className="shrink-0 text-right text-xs text-muted-foreground">
                           <span className="block">{new Date(gen.created_at).toLocaleDateString()}</span>
                           <span className="block text-xs">{new Date(gen.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                          <span className="mt-2 block font-medium text-purple-300" aria-live="polite">
+                            {copiedGenId === gen.id ? "Copied!" : ""}
+                          </span>
                         </span>
                       </div>
                     </div>
