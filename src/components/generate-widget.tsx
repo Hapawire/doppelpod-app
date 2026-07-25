@@ -354,6 +354,13 @@ export function GenerateWidget({ onCoworkOpen, onLoadingChange, placeholder }: G
             setVideoProgress(100);
             setVideoUrl(job.heygen_video_url);
             setVideoLoading(false);
+            // The avatar is now trained and saved to the profile. Adopt it as the
+            // active saved avatar so "Regenerate" reuses it instead of re-uploading
+            // and re-training the photo from scratch (which costs credits + ~25 min).
+            if (job.has_photo && job.heygen_avatar_id) {
+              setSavedAvatarId(job.heygen_avatar_id);
+              setUseSavedAvatar(true);
+            }
           } else if (status === "failed") {
             if (videoPollingRef.current) clearInterval(videoPollingRef.current);
             setJobStatus("failed");
@@ -803,10 +810,11 @@ export function GenerateWidget({ onCoworkOpen, onLoadingChange, placeholder }: G
             posterUrl={avatarPreview || undefined}
             onGenerate={handleGenerateVideo}
             onRegenerate={() => {
-              setVideoUrl(null);
-              setVideoProgress(0);
-              setVideoError("");
-              setJobStatus("");
+              // handleGenerateVideo resets video state at its start, so just re-run.
+              // After a completed photo job we've adopted the trained avatar as the
+              // saved avatar (see polling completion handler), so this reuses it
+              // rather than re-training.
+              handleGenerateVideo();
             }}
             disabled={!output && !input.trim()}
           />

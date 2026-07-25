@@ -15,7 +15,7 @@ export async function GET(
 
   const { data: job, error } = await supabase
     .from("video_jobs")
-    .select("id, status, has_photo, heygen_video_url, error_message, created_at, completed_at")
+    .select("id, status, has_photo, heygen_avatar_id, heygen_video_url, error_message, created_at, completed_at")
     .eq("id", jobId)
     .eq("user_id", user.id)
     .single();
